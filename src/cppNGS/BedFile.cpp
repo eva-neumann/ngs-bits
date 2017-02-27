@@ -310,10 +310,10 @@ void BedFile::add(const BedFile& file2)
 void BedFile::subtract(const BedFile& file2)
 {
 	//check target region is merged/sorted and create index
-	if (!file2.isMergedAndSorted())
-	{
-		THROW(ArgumentException, "Merged and sorted BED file required for calculating the difference of BED files!");
-	}
+    if (!file2.isMerged())
+    {
+        THROW(ArgumentException, "Merged BED file required for calculating the difference of BED files!");
+    }
 	ChromosomalIndex<BedFile> file2_idx(file2);
 
 	//remove annotations
@@ -329,7 +329,8 @@ void BedFile::subtract(const BedFile& file2)
 			const BedLine& line2 = file2[index];
 
 			//check overlap (needed because we append lines)
-			if (!lines_[i].overlapsWith(line2.chr(), line2.start(), line2.end())) continue;
+            /// Eva: why is this needed? Not in new data structure
+            //if (!lines_[i].overlapsWith(line2.chr(), line2.start(), line2.end())) continue;
 
 			// subtract all (make region invalid)
 			if (line2.start()<=lines_[i].start() && line2.end()>=lines_[i].end())
@@ -365,11 +366,11 @@ void BedFile::subtract(const BedFile& file2)
 
 void BedFile::intersect(const BedFile& file2)
 {
-	//check target region is merged/sorted and create index
-	if (!file2.isMergedAndSorted())
-	{
-		THROW(ArgumentException, "Merged and sorted BED file required for for calculating the intersect of BED files!");
-	}
+    //check target region is merged and create index
+    if (!file2.isMerged())
+    {
+        THROW(ArgumentException, "Merged BED file required for calculating the intersect of BED files!");
+    }
 	ChromosomalIndex<BedFile> file2_idx(file2);
 
 	//remove annotations and headers
@@ -408,11 +409,11 @@ void BedFile::intersect(const BedFile& file2)
 
 void BedFile::overlapping(const BedFile& file2)
 {
-	//check target region is merged/sorted and create index
-	if (!file2.isMergedAndSorted())
-	{
-		THROW(ArgumentException, "Merged and sorted BED file required for calculating the overlap of BED files!");
-	}
+    //check target region is merged and create index
+    if (!file2.isMerged())
+    {
+        THROW(ArgumentException, "Merged BED file required for calculating the overlap of BED files!");
+    }
 	ChromosomalIndex<BedFile> file2_idx(file2);
 
 	//overlapping

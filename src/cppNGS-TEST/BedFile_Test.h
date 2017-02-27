@@ -274,125 +274,125 @@ private slots:
 		I_EQUAL(file[2].end(), 210);
 	}
 
-	void subtract()
-	{
-		BedFile file1;
-		file1.append(BedLine("chr2", 1, 100));
-		file1.append(BedLine("chr1", 5, 9));
-		file1.append(BedLine("chr1", 9, 20));
-		file1.append(BedLine("chr1", 8, 22));
-		file1.append(BedLine("chr1", 10, 20));
-		file1.append(BedLine("chr1", 10, 21));
-		BedFile file2;
-		file2.append(BedLine("chr1", 10, 20));
+    void subtract()
+    {
+        BedFile file1;
+        file1.append(BedLine("chr2", 1, 100));
+        file1.append(BedLine("chr1", 5, 9));
+        file1.append(BedLine("chr1", 9, 20));
+        file1.append(BedLine("chr1", 8, 22));
+        file1.append(BedLine("chr1", 10, 20));
+        file1.append(BedLine("chr1", 10, 21));
+        BedFile file2;
+        file2.append(BedLine("chr1", 10, 20));
 
-		file1.subtract(file2);
+        file1.subtract(file2);
 
-		I_EQUAL(file1.count(), 6);
-		X_EQUAL(file1[0].chr(), Chromosome("chr2"));
-		I_EQUAL(file1[0].start(), 1);
-		I_EQUAL(file1[0].end(), 100);
-		X_EQUAL(file1[1].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[1].start(), 5);
-		I_EQUAL(file1[1].end(), 9);
-		X_EQUAL(file1[2].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[2].start(), 9);
-		I_EQUAL(file1[2].end(), 9);
-		X_EQUAL(file1[3].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[3].start(), 8);
-		I_EQUAL(file1[3].end(), 9);
-		X_EQUAL(file1[4].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[4].start(), 21);
-		I_EQUAL(file1[4].end(), 21);
-		X_EQUAL(file1[5].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[5].start(), 21);
-		I_EQUAL(file1[5].end(), 22);
-	}
+        I_EQUAL(file1.count(), 6);
+        X_EQUAL(file1[0].chr(), Chromosome("chr2"));
+        I_EQUAL(file1[0].start(), 1);
+        I_EQUAL(file1[0].end(), 100);
+        X_EQUAL(file1[1].chr(), Chromosome("chr1"));
+        I_EQUAL(file1[1].start(), 5);
+        I_EQUAL(file1[1].end(), 9);
+        X_EQUAL(file1[2].chr(), Chromosome("chr1"));
+        I_EQUAL(file1[2].start(), 9);
+        I_EQUAL(file1[2].end(), 9);
+        X_EQUAL(file1[3].chr(), Chromosome("chr1"));
+        I_EQUAL(file1[3].start(), 8);
+        I_EQUAL(file1[3].end(), 9);
+        X_EQUAL(file1[4].chr(), Chromosome("chr1"));
+        I_EQUAL(file1[4].start(), 21);
+        I_EQUAL(file1[4].end(), 21);
+        X_EQUAL(file1[5].chr(), Chromosome("chr1"));
+        I_EQUAL(file1[5].start(), 21);
+        I_EQUAL(file1[5].end(), 22);
+    }
 
-	void subtract2()
-	{
-		BedFile file1;
-		file1.append(BedLine("chr11", 5000000, 6000000));
-		file1.append(BedLine("chr13", 45000000, 46000000));
-		file1.append(BedLine("chr16", 71000000, 72000000));
-		file1.append(BedLine("chr16", 73000000, 74000000));
-		BedFile file2;
-		file2.append(BedLine("chr11", 5012596, 5012620));
-		file2.append(BedLine("chr11", 5462579, 5462675));
-		file2.append(BedLine("chr11", 5462707, 5462748));
-		file2.append(BedLine("chr13", 45553329, 45553489));
-		file2.append(BedLine("chr16", 71196324, 71196420));
-		file2.append(BedLine("chr16", 71196480, 71196576));
+    void subtract2()
+    {
+        BedFile file1;
+        file1.append(BedLine("chr11", 5000000, 6000000));
+        file1.append(BedLine("chr13", 45000000, 46000000));
+        file1.append(BedLine("chr16", 71000000, 72000000));
+        file1.append(BedLine("chr16", 73000000, 74000000));
+        BedFile file2;
+        file2.append(BedLine("chr11", 5012596, 5012620));
+        file2.append(BedLine("chr11", 5462579, 5462675));
+        file2.append(BedLine("chr11", 5462707, 5462748));
+        file2.append(BedLine("chr13", 45553329, 45553489));
+        file2.append(BedLine("chr16", 71196324, 71196420));
+        file2.append(BedLine("chr16", 71196480, 71196576));
 
-		file1.subtract(file2);
-		file1.merge();
+        file1.subtract(file2);
+        file1.merge();
 
-		I_EQUAL(file1.count(), 10);
-		X_EQUAL(file1[0].chr(), Chromosome("chr11"));
-		I_EQUAL(file1[0].start(), 5000000);
-		I_EQUAL(file1[0].end(), 5012595);
-		X_EQUAL(file1[1].chr(), Chromosome("chr11"));
-		I_EQUAL(file1[1].start(), 5012621);
-		I_EQUAL(file1[1].end(), 5462578);
-		X_EQUAL(file1[2].chr(), Chromosome("chr11"));
-		I_EQUAL(file1[2].start(), 5462676);
-		I_EQUAL(file1[2].end(), 5462706);
-		X_EQUAL(file1[3].chr(), Chromosome("chr11"));
-		I_EQUAL(file1[3].start(), 5462749);
-		I_EQUAL(file1[3].end(), 6000000);
-		X_EQUAL(file1[4].chr(), Chromosome("chr13"));
-		I_EQUAL(file1[4].start(), 45000000);
-		I_EQUAL(file1[4].end(), 45553328);
-		X_EQUAL(file1[5].chr(), Chromosome("chr13"));
-		I_EQUAL(file1[5].start(), 45553490);
-		I_EQUAL(file1[5].end(), 46000000);
-		X_EQUAL(file1[6].chr(), Chromosome("chr16"));
-		I_EQUAL(file1[6].start(), 71000000);
-		I_EQUAL(file1[6].end(), 71196323);
-		X_EQUAL(file1[7].chr(), Chromosome("chr16"));
-		I_EQUAL(file1[7].start(), 71196421);
-		I_EQUAL(file1[7].end(), 71196479);
-		X_EQUAL(file1[8].chr(), Chromosome("chr16"));
-		I_EQUAL(file1[8].start(), 71196577);
-		I_EQUAL(file1[8].end(), 72000000);
-		X_EQUAL(file1[9].chr(), Chromosome("chr16"));
-		I_EQUAL(file1[9].start(), 73000000);
-		I_EQUAL(file1[9].end(), 74000000);
-	}
+        I_EQUAL(file1.count(), 10);
+        X_EQUAL(file1[0].chr(), Chromosome("chr11"));
+        I_EQUAL(file1[0].start(), 5000000);
+        I_EQUAL(file1[0].end(), 5012595);
+        X_EQUAL(file1[1].chr(), Chromosome("chr11"));
+        I_EQUAL(file1[1].start(), 5012621);
+        I_EQUAL(file1[1].end(), 5462578);
+        X_EQUAL(file1[2].chr(), Chromosome("chr11"));
+        I_EQUAL(file1[2].start(), 5462676);
+        I_EQUAL(file1[2].end(), 5462706);
+        X_EQUAL(file1[3].chr(), Chromosome("chr11"));
+        I_EQUAL(file1[3].start(), 5462749);
+        I_EQUAL(file1[3].end(), 6000000);
+        X_EQUAL(file1[4].chr(), Chromosome("chr13"));
+        I_EQUAL(file1[4].start(), 45000000);
+        I_EQUAL(file1[4].end(), 45553328);
+        X_EQUAL(file1[5].chr(), Chromosome("chr13"));
+        I_EQUAL(file1[5].start(), 45553490);
+        I_EQUAL(file1[5].end(), 46000000);
+        X_EQUAL(file1[6].chr(), Chromosome("chr16"));
+        I_EQUAL(file1[6].start(), 71000000);
+        I_EQUAL(file1[6].end(), 71196323);
+        X_EQUAL(file1[7].chr(), Chromosome("chr16"));
+        I_EQUAL(file1[7].start(), 71196421);
+        I_EQUAL(file1[7].end(), 71196479);
+        X_EQUAL(file1[8].chr(), Chromosome("chr16"));
+        I_EQUAL(file1[8].start(), 71196577);
+        I_EQUAL(file1[8].end(), 72000000);
+        X_EQUAL(file1[9].chr(), Chromosome("chr16"));
+        I_EQUAL(file1[9].start(), 73000000);
+        I_EQUAL(file1[9].end(), 74000000);
+    }
 
-	void shrink()
-	{
-		BedFile file1;
-		file1.append(BedLine("chr11", 1, 2));
-		file1.append(BedLine("chr13", 10, 20));
-		file1.append(BedLine("chr16", 1, 3));
-		file1.append(BedLine("chr16", 4, 10));
+    void shrink()
+    {
+        BedFile file1;
+        file1.append(BedLine("chr11", 1, 2));
+        file1.append(BedLine("chr13", 10, 20));
+        file1.append(BedLine("chr16", 1, 3));
+        file1.append(BedLine("chr16", 4, 10));
 
-		file1.shrink(1);
+        file1.shrink(1);
 
-		I_EQUAL(file1.count(), 3);
-		X_EQUAL(file1[0].chr(), Chromosome("chr13"));
-		I_EQUAL(file1[0].start(), 11);
-		I_EQUAL(file1[0].end(), 19);
-		X_EQUAL(file1[1].chr(), Chromosome("chr16"));
-		I_EQUAL(file1[1].start(), 2);
-		I_EQUAL(file1[1].end(), 2);
-		X_EQUAL(file1[2].chr(), Chromosome("chr16"));
-		I_EQUAL(file1[2].start(), 5);
-		I_EQUAL(file1[2].end(), 9);
+        I_EQUAL(file1.count(), 3);
+        X_EQUAL(file1[0].chr(), Chromosome("chr13"));
+        I_EQUAL(file1[0].start(), 11);
+        I_EQUAL(file1[0].end(), 19);
+        X_EQUAL(file1[1].chr(), Chromosome("chr16"));
+        I_EQUAL(file1[1].start(), 2);
+        I_EQUAL(file1[1].end(), 2);
+        X_EQUAL(file1[2].chr(), Chromosome("chr16"));
+        I_EQUAL(file1[2].start(), 5);
+        I_EQUAL(file1[2].end(), 9);
 
-		file1.shrink(2);
-		I_EQUAL(file1.count(), 2);
-		X_EQUAL(file1[0].chr(), Chromosome("chr13"));
-		I_EQUAL(file1[0].start(), 13);
-		I_EQUAL(file1[0].end(), 17);
-		X_EQUAL(file1[1].chr(), Chromosome("chr16"));
-		I_EQUAL(file1[1].start(), 7);
-		I_EQUAL(file1[1].end(), 7);
+        file1.shrink(2);
+        I_EQUAL(file1.count(), 2);
+        X_EQUAL(file1[0].chr(), Chromosome("chr13"));
+        I_EQUAL(file1[0].start(), 13);
+        I_EQUAL(file1[0].end(), 17);
+        X_EQUAL(file1[1].chr(), Chromosome("chr16"));
+        I_EQUAL(file1[1].start(), 7);
+        I_EQUAL(file1[1].end(), 7);
 
-		file1.shrink(3);
-		I_EQUAL(file1.count(), 0);
-	}
+        file1.shrink(3);
+        I_EQUAL(file1.count(), 0);
+    }
 
 	void intersect()
 	{
@@ -414,9 +414,10 @@ private slots:
 		file2.append(BedLine("chr1", 5, 8));
 		file2.append(BedLine("chr1", 21, 50));
 		file1.intersect(file2);
+        /// Eva: The order has changed with the new implementation. Check why
 		I_EQUAL(file1.count(), 4);
 		X_EQUAL(file1[0].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[0].start(), 5);
+        I_EQUAL(file1[0].start(), 5);
 		I_EQUAL(file1[0].end(), 8);
 		X_EQUAL(file1[1].chr(), Chromosome("chr1"));
 		I_EQUAL(file1[1].start(), 8);

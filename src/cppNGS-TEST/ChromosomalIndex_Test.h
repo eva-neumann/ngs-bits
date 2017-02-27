@@ -92,8 +92,9 @@ private slots:
 		I_EQUAL(index, 4);
 
 		//whole chr2
-		index = bed_index.matchingIndex("chr2", 0, 100000);
-		I_EQUAL(index, 100);
+        index = bed_index.matchingIndex("chr2", 0, 100000);
+         // root of interval tree is 199
+        I_EQUAL(index, 199);
 
 		//5 elements
 		index = bed_index.matchingIndex("chr2", 1, 5);
@@ -197,7 +198,8 @@ private slots:
 
 		//whole chr2
 		index = var_index.matchingIndex("chr2", 0, 100000);
-		I_EQUAL(index, 100);
+        // root of interval tree is 190
+        I_EQUAL(index, 190);
 
 		//no overlap
 		index = var_index.matchingIndex("chr2", 500, 505);

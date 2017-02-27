@@ -25,6 +25,7 @@ HEADERS += \
         Helper_Test.h \
         BasicStatistics_Test.h \
         TSVFileStream_Test.h \
+    IntervalTree_Test.h
 
 SOURCES += \
         main.cpp
