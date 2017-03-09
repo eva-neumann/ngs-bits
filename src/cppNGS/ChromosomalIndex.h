@@ -6,7 +6,6 @@
 #include "IntervalTree.h"
 #include <QHash>
 #include <QVector>
-#include <QPair>
 
 ///Chromosomal index for fast access to @em sorted containers with chromosomal range elements like BedFile and VariantList.
 template <class T>
@@ -14,13 +13,24 @@ class CPPNGSSHARED_EXPORT ChromosomalIndex
 {
 public:
     ///Constructor.
-    ChromosomalIndex(const T& container, int depth=3000, int maxbucket=128);
+    ChromosomalIndex(const T& container, int depth=std::numeric_limits<int>::max(), int maxbucket=1);
 
     ///Re-creates the index (only needed if the container content changed after calling the index constructor).
     void createIndex();
 
     ///Returns the underlying container
     const T& container() const { return container_; }
+
+    /// Returns the hash with all intervaltrees
+    const QHash<Chromosome, IntervalTree >& allIntervalTrees() const {return chr_intervals_;}
+
+    /// Returns the interval tree of a certain chromosome
+    const IntervalTree* intervalTree(const Chromosome& chrom) const;
+
+    bool containsChromosome(const Chromosome& chromosome) const {return chr_intervals_.contains(chromosome); }
+
+    void subtract(const Chromosome& chromosome, const ChromosomalIndex<T>& other, QVector<Interval>& remaining_intervals) const;
+
 
     ///Returns a vector of element indices overlapping the given chromosomal range.
     QVector<int> matchingIndices(const Chromosome& chr, int start, int end) const;
@@ -29,7 +39,7 @@ public:
 
 protected:
     const T& container_;
-    QHash<int, IntervalTree > chr_intervals_;
+    QHash<Chromosome, IntervalTree > chr_intervals_;
     int depth_;
     int maxbucket_;
 };
@@ -47,22 +57,22 @@ template <class T>
 void ChromosomalIndex<T>::createIndex()
 {
     // collect the intervals for each chromosome
-    QHash<int, QVector<Interval> > hash_intervals;
+    QHash<Chromosome, QVector<Interval> > hash_intervals;
     for (int i=0; i<container_.count(); ++i)
     {
         Chromosome chr = container_[i].chr();
-        if (!hash_intervals.contains(chr.num()))
+        if (!hash_intervals.contains(chr))
         {
             QVector<Interval> intervals;
-            hash_intervals.insert(chr.num(),intervals);
+            hash_intervals.insert(chr,intervals);
         }
         Interval interval(container_[i].start(),container_[i].end(),i);
-        hash_intervals[chr.num()].append(interval);
+        hash_intervals[chr].append(interval);
     }
 
     // build for each chromosome an interval tree
-    QHash<int, QVector<Interval> >::const_iterator hash_intervals_it = hash_intervals.constBegin();
-    while (hash_intervals_it != hash_intervals.constEnd())
+    QHash<Chromosome, QVector<Interval> >::iterator hash_intervals_it = hash_intervals.begin();
+    while (hash_intervals_it != hash_intervals.end())
     {
         IntervalTree interval_tree(hash_intervals_it.value(),depth_,0,0,maxbucket_);
         chr_intervals_.insert(hash_intervals_it.key(),interval_tree);
@@ -77,14 +87,17 @@ QVector<int> ChromosomalIndex<T>::matchingIndices(const Chromosome& chr, int sta
     QVector<int> matching_indices;
 
     //chromosome not found
-    if (!chr_intervals_.contains(chr.num())) return matching_indices;
+    if (!chr_intervals_.contains(chr)) return matching_indices;
 
-    /// Eva: hier wird beim operator[] IntervalTree CpCstr aufgerufen :-|
-    QVector<Interval> matching_intervals = chr_intervals_[chr.num()].overlappingIntervals(start,end);
+    QVector<Interval> matching_intervals;
+    chr_intervals_[chr].overlappingIntervals(start,end,matching_intervals);
 
+    matching_indices.resize(matching_intervals.size());
+    int i=0;
     foreach (const Interval& interval, matching_intervals)
     {
-        matching_indices.append(interval.value);
+        matching_indices[i]=interval.value;
+        ++i;
     }
 
     return matching_indices;
@@ -95,14 +108,36 @@ template <class T>
 int ChromosomalIndex<T>::matchingIndex(const Chromosome& chr, int start, int end) const
 {
     //chromosome not found
-    if (!chr_intervals_.contains(chr.num())) return -1;
+    if (!chr_intervals_.contains(chr)) return -1;
 
-    QVector<Interval> matching_intervals = chr_intervals_[chr.num()].overlappingIntervals(start,end,true);
+    QVector<Interval> matching_intervals;
+    chr_intervals_[chr].overlappingIntervals(start,end,matching_intervals,true);
     if (matching_intervals.size() > 0)
     {
         return matching_intervals[0].value;
     }
     return -1;
+}
+
+
+template <class T>
+void ChromosomalIndex<T>::subtract(const Chromosome& chromosome, const ChromosomalIndex<T>& other, QVector<Interval>& remaining_intervals) const
+{
+    remaining_intervals.clear();
+    // if the chromosome is present in this chromosomal index proceed
+    if (chr_intervals_.contains(chromosome))
+    {
+        // if also the other chromosomal index has an interval of the chromosome subtract the trees
+        if (other.chr_intervals_.contains(chromosome))
+        {
+            chr_intervals_[chromosome].subtractTree(other.chr_intervals_[chromosome],remaining_intervals);
+        }
+        // else all intervals of the chromosome in this chromosomal index remain
+        else
+        {
+            chr_intervals_[chromosome].allIntervals(remaining_intervals);
+        }
+    }
 }
 
 

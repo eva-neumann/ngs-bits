@@ -274,6 +274,34 @@ private slots:
 		I_EQUAL(file[2].end(), 210);
 	}
 
+// TODO move to intervaltree test
+//    void subtract_new()
+//    {
+
+//        BedFile file1;
+//        file1.append(BedLine("chr1", 1, 12));
+//        file1.append(BedLine("chr1", 10, 15));
+//        file1.append(BedLine("chr1", 14, 17));
+
+//        BedFile file2;
+//        file2.append(BedLine("chr1", 3, 5));
+//        file2.append(BedLine("chr1", 7, 11));
+//        file2.append(BedLine("chr1", 15, 16));
+//        file2.append(BedLine("chr1", 17, 19));
+
+//        file1.subtract(file2);
+//        I_EQUAL(file1.count(), 6);
+//    chr1	1	3
+//    chr1	5	7
+//    chr1	11	12
+//    chr1	11	15
+//    chr1	14	15
+//    chr1	16	17
+
+
+//    }
+
+
     void subtract()
     {
         BedFile file1;
@@ -289,17 +317,16 @@ private slots:
         file1.subtract(file2);
 
         I_EQUAL(file1.count(), 6);
-        X_EQUAL(file1[0].chr(), Chromosome("chr2"));
-        I_EQUAL(file1[0].start(), 1);
-        I_EQUAL(file1[0].end(), 100);
+        // This needs to be done, since QHash, which is used for indexing writes the intervals in arbitrary order
+        file1.sort();
         X_EQUAL(file1[1].chr(), Chromosome("chr1"));
         I_EQUAL(file1[1].start(), 5);
         I_EQUAL(file1[1].end(), 9);
         X_EQUAL(file1[2].chr(), Chromosome("chr1"));
-        I_EQUAL(file1[2].start(), 9);
+        I_EQUAL(file1[2].start(), 8);
         I_EQUAL(file1[2].end(), 9);
         X_EQUAL(file1[3].chr(), Chromosome("chr1"));
-        I_EQUAL(file1[3].start(), 8);
+        I_EQUAL(file1[3].start(), 9);
         I_EQUAL(file1[3].end(), 9);
         X_EQUAL(file1[4].chr(), Chromosome("chr1"));
         I_EQUAL(file1[4].start(), 21);
@@ -307,6 +334,9 @@ private slots:
         X_EQUAL(file1[5].chr(), Chromosome("chr1"));
         I_EQUAL(file1[5].start(), 21);
         I_EQUAL(file1[5].end(), 22);
+        X_EQUAL(file1[0].chr(), Chromosome("chr2"));
+        I_EQUAL(file1[0].start(), 1);
+        I_EQUAL(file1[0].end(), 100);
     }
 
     void subtract2()
@@ -325,6 +355,7 @@ private slots:
         file2.append(BedLine("chr16", 71196480, 71196576));
 
         file1.subtract(file2);
+        // Hier weitermachen: Merge anschauen und umbauen
         file1.merge();
 
         I_EQUAL(file1.count(), 10);
@@ -410,24 +441,24 @@ private slots:
 		file1.append(BedLine("chr1", 10, 21));
 		file1.append(BedLine("chr1", 8, 22));
 		file1.append(BedLine("chr1", 9, 20));
-		file1.sort();
-		file2.append(BedLine("chr1", 5, 8));
+        file2.append(BedLine("chr1", 5, 8));
 		file2.append(BedLine("chr1", 21, 50));
 		file1.intersect(file2);
-        /// Eva: The order has changed with the new implementation. Check why
+        file1.sort();
+
 		I_EQUAL(file1.count(), 4);
 		X_EQUAL(file1[0].chr(), Chromosome("chr1"));
         I_EQUAL(file1[0].start(), 5);
 		I_EQUAL(file1[0].end(), 8);
 		X_EQUAL(file1[1].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[1].start(), 8);
-		I_EQUAL(file1[1].end(), 8);
+        I_EQUAL(file1[1].start(), 8);
+        I_EQUAL(file1[1].end(), 8);
 		X_EQUAL(file1[2].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[2].start(), 21);
-		I_EQUAL(file1[2].end(), 21);
+        I_EQUAL(file1[2].start(), 21);
+        I_EQUAL(file1[2].end(), 21);
 		X_EQUAL(file1[3].chr(), Chromosome("chr1"));
-		I_EQUAL(file1[3].start(), 21);
-		I_EQUAL(file1[3].end(), 22);
+        I_EQUAL(file1[3].start(), 21);
+        I_EQUAL(file1[3].end(), 22);
 	}
 
 	void overlapping()

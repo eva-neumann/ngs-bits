@@ -307,71 +307,35 @@ void BedFile::add(const BedFile& file2)
 	}
 }
 
+
+/// Hier weitermachen
 void BedFile::subtract(const BedFile& file2)
 {
-	//check target region is merged/sorted and create index
-    if (!file2.isMerged())
-    {
-        THROW(ArgumentException, "Merged BED file required for calculating the difference of BED files!");
-    }
+    ChromosomalIndex<BedFile> file1_idx(*this);
 	ChromosomalIndex<BedFile> file2_idx(file2);
 
-	//remove annotations
-	clearAnnotations();
+    lines_.clear();
 
-	//subtract
-	int removed_lines = 0;
-	for (int i=0; i<lines_.count(); ++i)
-	{
-		QVector<int> matches = file2_idx.matchingIndices(lines_[i].chr(), lines_[i].start(), lines_[i].end());
-		foreach(int index, matches)
-		{
-			const BedLine& line2 = file2[index];
+    QHash<Chromosome, IntervalTree >::const_iterator file1_tree_it = file1_idx.allIntervalTrees().begin();
+    while (file1_tree_it != file1_idx.allIntervalTrees().end())
+    {
+        Chromosome chromosome =file1_tree_it.key();
+        QVector<Interval> file1_remaining;
+        // if the chromosome is not part of file2 all intervals in file1 remain
+        file1_idx.subtract(chromosome, file2_idx,file1_remaining);
 
-			//check overlap (needed because we append lines)
-            /// Eva: why is this needed? Not in new data structure
-            //if (!lines_[i].overlapsWith(line2.chr(), line2.start(), line2.end())) continue;
+        foreach (const Interval& interval, file1_remaining)
+        {
+            append(BedLine(chromosome, interval.start, interval.end));
+        }
 
-			// subtract all (make region invalid)
-			if (line2.start()<=lines_[i].start() && line2.end()>=lines_[i].end())
-			{
-				lines_[i].setStart(0);
-				lines_[i].setEnd(0);
-				++removed_lines;
-			}
-			// subract from middle (2 regions are created)
-			else if (line2.start()>lines_[i].start() && line2.end()<lines_[i].end())
-			{
-				//create new region (right part)
-				append(BedLine(lines_[i].chr(), line2.end()+1, lines_[i].end()));
-				//trim old region (left part)
-				lines_[i].setEnd(line2.start()-1);
-			}
-			// subtract from left
-			else if (line2.start()>lines_[i].start())
-			{
-				lines_[i].setEnd(line2.start()-1);
-			}
-			// subtract from right
-			else
-			{
-				lines_[i].setStart(line2.end()+1);
-			}
-		}
-	}
-
-	//remove invalid lines, if necessary
-	if (removed_lines!=0) removeInvalidLines();
+        ++file1_tree_it;
+    }
 }
 
 void BedFile::intersect(const BedFile& file2)
 {
-    //check target region is merged and create index
-    if (!file2.isMerged())
-    {
-        THROW(ArgumentException, "Merged BED file required for calculating the intersect of BED files!");
-    }
-	ChromosomalIndex<BedFile> file2_idx(file2);
+    ChromosomalIndex<BedFile> file2_idx(file2);
 
 	//remove annotations and headers
 	clearAnnotations();
@@ -383,7 +347,7 @@ void BedFile::intersect(const BedFile& file2)
 		const BedLine& line = lines_[i];
 		QVector<int> matches = file2_idx.matchingIndices(line.chr(), line.start(), line.end());
 		//not match => not intersect => remove
-		if (matches.count()==0)
+        if (matches.empty())
 		{
 			lines_[i].setStart(0);
 			lines_[i].setEnd(0);

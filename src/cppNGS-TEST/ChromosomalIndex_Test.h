@@ -81,7 +81,7 @@ private slots:
 
 		//whole chr1
 		index = bed_index.matchingIndex("chr1", 0, 100000);
-		I_EQUAL(index, 0);
+        I_EQUAL(index, 49);
 
 		//3 elements
 		index = bed_index.matchingIndex("chr1", 5, 7);
@@ -186,7 +186,7 @@ private slots:
 
 		//whole chr1
 		index = var_index.matchingIndex("chr1", 0, 100000);
-		I_EQUAL(index, 0);
+        I_EQUAL(index, 40);
 
 		//7 elements
 		index = var_index.matchingIndex("chr1", 5, 7);

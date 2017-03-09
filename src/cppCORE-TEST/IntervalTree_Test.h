@@ -37,7 +37,8 @@ TEST_CLASS(IntervalTree_Test)
 
         foreach (const Interval& i, queries)
         {
-            QVector<Interval> matches = interval_tree.overlappingIntervals(i.start, i.end);
+            QVector<Interval> matches;
+            interval_tree.overlappingIntervals(i.start, i.end, matches);
             std::cout << "Interval " << i.start << ","<< i.end << " has the following matches" << std::endl;
             for (int j=0; j<matches.size();++j)
             {
@@ -72,7 +73,8 @@ TEST_CLASS(IntervalTree_Test)
 
         foreach (const Interval& i, queries)
         {
-            QVector<Interval> matches = interval_tree.overlappingIntervals(i.start, i.end);
+            QVector<Interval> matches;
+            interval_tree.overlappingIntervals(i.start, i.end,  matches);
             std::cout << "Interval " << i.start << ","<< i.end << " has the following matches" << std::endl;
             for (int j=0; j<matches.size();++j)
             {
