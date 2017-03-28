@@ -12,7 +12,8 @@ private slots:
 	void matchingIndices_BedFile()
 	{
 		BedFile bed_file;
-		for (int c=1; c<=22; ++c)
+    //	for (int c=1; c<=22; ++c)
+    for (int c=1; c<=1; ++c)
 		{
 			for (int p=1; p<=100*c; ++p)
 			{
@@ -85,7 +86,7 @@ private slots:
 
 		//3 elements
 		index = bed_index.matchingIndex("chr1", 5, 7);
-		I_EQUAL(index, 4);
+        I_EQUAL(index, 5);
 
 		//1 element
 		index = bed_index.matchingIndex("chr1", 5, 5);
@@ -98,11 +99,11 @@ private slots:
 
 		//5 elements
 		index = bed_index.matchingIndex("chr2", 1, 5);
-		I_EQUAL(index, 100);
+        I_EQUAL(index, 102);
 
 		//overlap with beginning
 		index = bed_index.matchingIndex("chr2", -10, 5);
-		I_EQUAL(index, 100);
+        I_EQUAL(index, 102);
 
 		//overlap with end
 		index = bed_index.matchingIndex("chr2", 200, 205);

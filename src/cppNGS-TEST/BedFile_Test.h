@@ -319,24 +319,24 @@ private slots:
         I_EQUAL(file1.count(), 6);
         // This needs to be done, since QHash, which is used for indexing writes the intervals in arbitrary order
         file1.sort();
+        X_EQUAL(file1[0].chr(), Chromosome("chr1"));
+        I_EQUAL(file1[0].start(), 5);
+        I_EQUAL(file1[0].end(), 9);
         X_EQUAL(file1[1].chr(), Chromosome("chr1"));
-        I_EQUAL(file1[1].start(), 5);
+        I_EQUAL(file1[1].start(), 8);
         I_EQUAL(file1[1].end(), 9);
         X_EQUAL(file1[2].chr(), Chromosome("chr1"));
-        I_EQUAL(file1[2].start(), 8);
+        I_EQUAL(file1[2].start(), 9);
         I_EQUAL(file1[2].end(), 9);
         X_EQUAL(file1[3].chr(), Chromosome("chr1"));
-        I_EQUAL(file1[3].start(), 9);
-        I_EQUAL(file1[3].end(), 9);
+        I_EQUAL(file1[3].start(), 21);
+        I_EQUAL(file1[3].end(), 21);
         X_EQUAL(file1[4].chr(), Chromosome("chr1"));
         I_EQUAL(file1[4].start(), 21);
-        I_EQUAL(file1[4].end(), 21);
-        X_EQUAL(file1[5].chr(), Chromosome("chr1"));
-        I_EQUAL(file1[5].start(), 21);
-        I_EQUAL(file1[5].end(), 22);
-        X_EQUAL(file1[0].chr(), Chromosome("chr2"));
-        I_EQUAL(file1[0].start(), 1);
-        I_EQUAL(file1[0].end(), 100);
+        I_EQUAL(file1[4].end(), 22);
+        X_EQUAL(file1[5].chr(), Chromosome("chr2"));
+        I_EQUAL(file1[5].start(), 1);
+        I_EQUAL(file1[5].end(), 100);
     }
 
     void subtract2()
