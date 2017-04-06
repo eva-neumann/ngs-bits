@@ -8,6 +8,10 @@
 #include "BasicStatistics.h"
 #include "algorithm"
 #include "cmath"
+// EVA
+# include "chrono"
+using  ns = std::chrono::nanoseconds;
+using get_time = std::chrono::steady_clock ;
 
 
 BedLine::BedLine()
@@ -314,9 +318,14 @@ void BedFile::subtract(const BedFile& file2)
     QTextStream outstream(stdout);
     QTime timer;
     QList<QString> timings;
+outstream << "Huhu " << endl;
     timer.start();
+    auto start = get_time::now(); //use auto keyword to minimize typing strokes :)
     ChromosomalIndex<BedFile> file2_idx(file2);
-    timings.append("Interval tree file 2: " + Helper::elapsedTime(timer));
+    auto end = get_time::now();
+    auto diff = end - start;
+    outstream << "Elapsed time is :  "<< std::chrono::duration_cast<ns>(diff).count()<<" ns "<< endl;
+    timings.append("Interval tree   file 2: " + Helper::elapsedTime(timer));
     timer.restart();
 
     //remove annotations
@@ -428,10 +437,10 @@ void BedFile::subtract(const BedFile& file2)
 //    if (removed_lines!=0) removeInvalidLines();
 //    timings.append("BedFile::subtract remove invalid lines: " + Helper::elapsedTime(timer));
 
-    foreach(const QString& line, timings)
-    {
-        outstream << line << endl;
-    }
+//    foreach(const QString& line, timings)
+//    {
+//        outstream << line << endl;
+//    }
 
 
 }

@@ -8,6 +8,7 @@
 #include <QVector>
 #include <QSet>
 
+
 ///Representation of a BED file line (1-based)
 class CPPNGSSHARED_EXPORT BedLine
 {
