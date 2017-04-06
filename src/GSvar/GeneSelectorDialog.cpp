@@ -8,10 +8,11 @@
 #include <QFileInfo>
 #include <QMessageBox>
 
-GeneSelectorDialog::GeneSelectorDialog(QString bam_file, QWidget* parent)
+GeneSelectorDialog::GeneSelectorDialog(QString sample_folder, QString sample_name, QWidget* parent)
 	: QDialog(parent)
 	, ui(new Ui::GeneSelectorDialog)
-	, bam_file_(bam_file)
+	, sample_folder_(sample_folder)
+	, sample_name_(sample_name)
 {
 	ui->setupUi(this);
 	ui->splitter->setStretchFactor(0, 1);
@@ -33,7 +34,7 @@ void GeneSelectorDialog::updateGeneTable()
 	ui->details->clearContents();
 
 	//convert input to gene list
-	QStringList genes = NGSHelper::textToGenes(ui->genes->toPlainText());
+	GeneSet genes = GeneSet::createFromText(ui->genes->toPlainText().toLatin1());
 	if (genes.isEmpty()) return;
 
 	//set cursor
@@ -41,8 +42,7 @@ void GeneSelectorDialog::updateGeneTable()
 	ui->details->blockSignals(true); //otherwise itemChanged is emitted
 
 	//check for CNA results
-	QString folder = QFileInfo(bam_file_).absolutePath();
-	QStringList files = Helper::findFiles(folder, "*_cnvs.seg", false);
+	QStringList files = Helper::findFiles(sample_folder_, "*_cnvs.seg", false);
 	bool cna_result_present = (files.count()==1);
 
 	//load CNA results
@@ -52,7 +52,7 @@ void GeneSelectorDialog::updateGeneTable()
 		auto f = Helper::openFileForReading(files[0]);
 		while(!f->atEnd())
 		{
-			QString line = f->readLine();
+			QByteArray line = f->readLine();
 
 			//skip headers
 			if (line.isEmpty() || line[0]!='\t')
@@ -61,20 +61,20 @@ void GeneSelectorDialog::updateGeneTable()
 			}
 
 			//parse content
-			QStringList parts = line.split('\t');
+			QList<QByteArray> parts = line.split('\t');
 			if (parts.count()<6) THROW(FileParseException, "SEG file line invalid: " + line);
 			Chromosome chr(parts[1]);
 			int start = Helper::toInt(parts[2], "SEG start position", line);
 			int end = Helper::toInt(parts[3], "SEG end position", line);
-			cna_results.append(BedLine(chr, start, end, QStringList() << parts[5]));
+			cna_results.append(BedLine(chr, start, end, QList<QByteArray>() << parts[5]));
 		}
 	}
 
 	//load low-coverage file for processing system
-	files = Helper::findFiles(folder, "*_lowcov.bed", false);
+	files = Helper::findFiles(sample_folder_, "*_lowcov.bed", false);
 	if(files.count()!=1)
 	{
-		updateError("Gene selection error", "Low-coverage BED file not found in " + folder);
+		updateError("Gene selection error", "Low-coverage BED file not found in " + sample_folder_);
 		return;
 	}
 	BedFile sys_gaps;
@@ -82,11 +82,11 @@ void GeneSelectorDialog::updateGeneTable()
 
 	//load processing system target region
 	NGSD db;
-	QString sys_file = db.getProcessingSystem(bam_file_, NGSD::FILE);
+	QString sys_file = db.getProcessingSystem(sample_name_, NGSD::FILE);
 	if (sys_file=="")
 	{
 
-		updateError("Gene selection error", "Processing system target region BED file not found in " + folder);
+		updateError("Gene selection error", "Processing system target region BED file not found for sample '" + sample_name_ +  "'");
 		return;
 	}
 	BedFile sys_roi;
@@ -97,7 +97,7 @@ void GeneSelectorDialog::updateGeneTable()
 	for (int r=0; r<genes.count(); ++r)
 	{
 		//convert gene to approved symbol
-		QString gene = genes[r];
+		QByteArray gene = genes[r];
 		int gene_id = db.geneToApprovedID(gene);
 		if(gene_id==-1)
 		{
@@ -217,9 +217,9 @@ QString GeneSelectorDialog::report()
 	//header
 	stream << "Gene selection report\n";
 	stream << "\n";
-	stream << "Sample: " << QFileInfo(bam_file_).fileName().replace(".bam", "") << "\n";
+	stream << "Sample: " << sample_name_ << "\n";
 	NGSD db;
-	stream << "Target region: " << db.getProcessingSystem(bam_file_, NGSD::LONG) << "\n";
+	stream << "Target region: " << db.getProcessingSystem(sample_name_, NGSD::LONG) << "\n";
 	stream << "\n";
 
 	//selected genes

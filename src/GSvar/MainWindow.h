@@ -34,8 +34,12 @@ public:
 	QString getBamFile();
 	///Returns the BAM files of a trio folder. Order is the same as in the folder name. If no or more BAM files are found, an empty list is returned.
 	QStringList getBamFilesTrio();
-	///Returns if the current file is a trio file
+	///Returns the BAM files of a somatic folder. Order is tumor, normal. If no or more BAM files are found, an empty list is returned.
+	QStringList getBamFilesSomatic();
+	///Returns if the current file is a trio variant list
 	bool isTrio();
+	///Returns if the current file is a somatic variant list
+	bool isSomatic();
 	///Adds a file to the recent file list
 	void addToRecentFiles(QString filename);
 	///Updates recent files menu
@@ -70,8 +74,6 @@ public slots:
 	void on_actionResize_triggered();
 	///Report dialog
 	void on_actionReport_triggered();
-	///Database annotation
-	void on_actionDatabase_triggered();
     ///NGSD link
 	void on_actionNGSD_triggered();
 	///Sample information
@@ -96,6 +98,8 @@ public slots:
 	void on_actionSampleDiff_triggered();
 	///Trio analysis
 	void on_actionTrio_triggered();
+	///Multi-sample analysis
+	void on_actionMultiSample_triggered();
 	///Lookup gaps in low-coverage BED file
 	void on_actionGapsLookup_triggered();
 	///Calculate gaps based on current target region
@@ -131,8 +135,13 @@ public slots:
 	///Create sample overview file
 	void on_actionSampleOverview_triggered();
 
-	///Finished the report generation
+	///Generates a report (somatic)
+	void generateReportSomatic();
+	///Generates a report (germline)
+	void generateReport();
+	///Finished the report generation (germline)
 	void reportGenerationFinished(bool success);
+
 	///Finished NGSD annotation
 	void databaseAnnotationFinished(bool success);
 	///Shows the variant list contect menu
@@ -141,6 +150,8 @@ public slots:
 	void updateVariantDetails();
 	///Updates the visible rows after filters have changed
 	void filtersChanged();
+	///Resets the annotation status
+	void resetAnnoationStatus();
 	///Opens the recent file defined by the sender action text
 	void openRecentFile();
 	///Loads the command line input file.
@@ -163,13 +174,16 @@ public slots:
 	///Removes all modeless dialogs that have been closed
 	void cleanUpModelessDialogs();
 
-    ///Default filters
+	///Variant default filters
     void applyDefaultFiltersGermline();
 	void applyDefaultFiltersTrio();
 	void applyDefaultFiltersMultiSample();
     void applyDefaultFiltersSomatic();
     void clearFilters();
 
+	///Variant database annotation
+	void annotateVariantsComplete();
+	void annotateVariantsROI();
 
 protected:
 	virtual void dragEnterEvent(QDragEnterEvent* e);
@@ -186,7 +200,7 @@ private:
 	//DATA
 	QString filename_;
 	FileWatcher filewatcher_;
-	bool db_annos_updated_;
+	enum {YES, NO, ROI} db_annos_updated_;
 	bool igv_initialized_;
 	VariantList variants_;
 	QMap<QString, QString> link_columns_;

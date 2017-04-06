@@ -16,7 +16,7 @@ class ReportWorker
 
 public:
 	///Constructor.
-	ReportWorker(QString sample_name, QMap<QString, QString> filters, const VariantList& variants, const QList<int>& variants_selected, QMap<QString, QString> preferred_transcripts, QString outcome, QString file_roi, QString file_bam, int min_cov, QStringList log_files, QString file_rep);
+	ReportWorker(QString sample_name, QMap<QString, QString> filters, const VariantList& variants, const QList<int>& variants_selected, QMap<QString, QString> preferred_transcripts, QString outcome, QString file_roi, QString file_bam, int min_cov, QStringList log_files, QString file_rep, bool calculate_depth);
 	virtual void process();
 
 	///Returns the file to which the HTML report was written.
@@ -26,8 +26,8 @@ public:
 	}
 
 	///writes a low-coverage report
-	static BedFile writeCoverageReport(QTextStream& stream, QString bam_file, QString roi_file, const BedFile& roi, QStringList genes, int min_cov, NGSD& db, QMap<QString, QString>* output=nullptr);
-	static void writeCoverageReportCCDS(QTextStream& stream, QString bam_file, QStringList genes, int min_cov, NGSD& db, QMap<QString, QString>* output=nullptr);
+	static BedFile writeCoverageReport(QTextStream& stream, QString bam_file, QString roi_file, const BedFile& roi, const GeneSet& genes, int min_cov, NGSD& db, bool calculate_depth, QMap<QString, QString>* output=nullptr);
+	static void writeCoverageReportCCDS(QTextStream& stream, QString bam_file, const GeneSet& genes, int min_cov, NGSD& db, QMap<QString, QString>* output=nullptr);
 
 	///Returns if the pre-calcualed gaps for the given ROI.
 	///If using the pre-calculated gaps file is not possible, @p message contains an error message.
@@ -38,6 +38,7 @@ public:
 
 	static void writeHtmlHeader(QTextStream& stream, QString sample_name);
 	static void writeHtmlFooter(QTextStream& stream);
+	static void validateAndCopyReport(QString from, QString to);
 
 private:
 	//input variables
@@ -51,8 +52,9 @@ private:
 	QString file_roi_;
 	QString file_bam_;
 	int min_cov_;
-	QStringList genes_;
+	GeneSet genes_;
 	QStringList log_files_;
+	bool calculate_depth_;
 
 	//output variables
 	QString file_rep_;

@@ -21,11 +21,19 @@ BedLine::BedLine()
 {
 }
 
+<<<<<<< HEAD
 BedLine::BedLine(const Chromosome& chr, int start, int end, const QStringList& annotations)
     : chr_(chr)
     , start_(start)
     , end_(end)
     , annotations_(annotations)
+=======
+BedLine::BedLine(const Chromosome& chr, int start, int end, const QList<QByteArray>& annotations)
+	: chr_(chr)
+	, start_(start)
+	, end_(end)
+	, annotations_(annotations)
+>>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 {
 }
 
@@ -39,6 +47,7 @@ bool BedLine::operator<(const BedLine& rhs) const
 
 BedLine BedLine::fromString(QString str)
 {
+<<<<<<< HEAD
     //normalize
     str = str.replace(',', ""); //remove thousands separator
     str = str.replace(':', '\t').replace('-', '\t'); //also accept "[c]:[s]-[e]"
@@ -57,6 +66,26 @@ BedLine BedLine::fromString(QString str)
     {
         return BedLine();
     }
+=======
+	//normalize
+	str = str.replace(',', ""); //remove thousands separator
+	str = str.replace(':', '\t').replace('-', '\t'); //also accept "[c]:[s]-[e]"
+	str = str.replace(QRegExp("[ ]+"), "\t"); //also accept "[c] [s] [e]" (with any number of spaces)
+
+	//split
+	QStringList parts = str.split('\t');
+	if (parts.count()<3) return BedLine();
+
+	//convert
+	try
+	{
+		return BedLine(parts[0], parts[1].toInt(), parts[2].toInt());
+	}
+	catch(...)
+	{
+		return BedLine();
+	}
+>>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 BedFile::BedFile()
@@ -100,6 +129,7 @@ QSet<Chromosome> BedFile::chromosomes() const
 
 void BedFile::load(QString filename)
 {
+<<<<<<< HEAD
     clear();
 
     //parse from stream
@@ -144,10 +174,41 @@ void BedFile::load(QString filename)
         }
         append(BedLine(fields[0], start_pos+1, end_pos, annos));
     }
+=======
+	clear();
+
+	//parse from stream
+	QSharedPointer<QFile> file = Helper::openFileForReading(filename, true);
+	while(!file->atEnd())
+	{
+		QByteArray line = file->readLine();
+		while (line.endsWith('\n') || line.endsWith('\r')) line.chop(1);
+
+		//skip empty lines
+		if(line.length()==0) continue;
+
+		//store headers
+		if (line.startsWith("#") || line.startsWith("track ") || line.startsWith("browser "))
+		{
+			headers_.append(line);
+			continue;
+		}
+
+		//error when less than 3 fields
+		QList<QByteArray> fields = line.split('\t');
+		if (fields.count()<3)
+		{
+			THROW(FileParseException, "BED file line with less than three fields found: '" + line.trimmed() + "'");
+		}
+
+		append(BedLine(fields[0], atoi(fields[1].data())+1, atoi(fields[2].data()), fields.mid(3)));
+	}
+>>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 void BedFile::store(QString filename) const
 {
+<<<<<<< HEAD
     //open stream
     QSharedPointer<QFile> file = Helper::openFileForWriting(filename, true);
     QTextStream stream(file.data());
@@ -170,10 +231,34 @@ void BedFile::store(QString filename) const
         }
         stream << "\n";
     }
+=======
+	//open stream
+	QSharedPointer<QFile> file = Helper::openFileForWriting(filename, true);
+	QTextStream stream(file.data());
+
+	//write headers
+	foreach(const QByteArray& header, headers_)
+	{
+		stream << header.trimmed()  << "\n";
+	}
+
+	//write contents
+	foreach(const BedLine& line, lines_)
+	{
+		QString line_text = line.chr().str() + "\t" + QString::number(line.start()-1) + "\t" + QString::number(line.end());
+		stream << line_text.toLatin1();
+		foreach(const QByteArray& anno, line.annotations())
+		{
+			stream << '\t' << anno;
+		}
+		stream << "\n";
+	}
+>>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 QString BedFile::toText() const
 {
+<<<<<<< HEAD
     QString output;
 
     foreach(const BedLine& line, lines_)
@@ -187,6 +272,21 @@ QString BedFile::toText() const
     }
 
     return output;
+=======
+	QString output;
+
+	foreach(const BedLine& line, lines_)
+	{
+		output.append(line.chr().str() + "\t" + QString::number(line.start()-1) + "\t" + QString::number(line.end()));
+		foreach(const QByteArray& anno, line.annotations())
+		{
+			output.append("\t" + anno);
+		}
+		output.append("\n");
+	}
+
+	return output;
+>>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 void BedFile::clearAnnotations()
@@ -215,61 +315,61 @@ void BedFile::sort(bool uniq)
 
 void BedFile::merge(bool merge_back_to_back, bool merge_names)
 {
-    //in the following code, we assume that at least one line is present...
-    if (lines_.count()==0) return;
+	//in the following code, we assume that at least one line is present...
+	if (lines_.count()==0) return;
 
-    //remove annotations data
-    for(int i=0; i<lines_.count(); ++i)
-    {
-        if (merge_names)
-        {
-            QString name = lines_[i].annotations().count() ? lines_[i].annotations()[0] : "";
-            lines_[i].annotations().clear();
-            lines_[i].annotations().append(name);
-        }
-        else
-        {
-            lines_[i].annotations().clear();
-        }
-    }
+	//remove annotations data
+	for(int i=0; i<lines_.count(); ++i)
+	{
+		if (merge_names)
+		{
+			QByteArray name = lines_[i].annotations().count() ? lines_[i].annotations()[0] : "";
+			lines_[i].annotations().clear();
+			lines_[i].annotations().append(name);
+		}
+		else
+		{
+			lines_[i].annotations().clear();
+		}
+	}
 
-    //sort if necessary
-    if (!isSorted()) sort();
+	//sort if necessary
+	if (!isSorted()) sort();
 
-    //merge lines
-    BedLine next_output_line = lines_.first();
-    int next_output_index = 0;
-    for (int i=1; i<lines_.count(); ++i)
-    {
-        const BedLine& line = lines_[i];
+	//merge lines
+	BedLine next_output_line = lines_.first();
+	int next_output_index = 0;
+	for (int i=1; i<lines_.count(); ++i)
+	{
+		const BedLine& line = lines_[i];
 
-        if ( next_output_line.overlapsWith(line.chr(), line.start(), line.end())
-             ||
-             (merge_back_to_back && next_output_line.adjacentTo(line.chr(), line.start(), line.end()))
-             )
-        {
-            if (line.end()>next_output_line.end())
-            {
-                next_output_line.setEnd(line.end());
-                if (merge_names)
-                {
-                    next_output_line.annotations()[0] += "," + line.annotations()[0];
-                }
-            }
-        }
-        else
-        {
-            lines_[next_output_index] = next_output_line;
-            ++next_output_index;
-            next_output_line = line;
-        }
-    }
+		if ( next_output_line.overlapsWith(line.chr(), line.start(), line.end())
+			 ||
+			 (merge_back_to_back && next_output_line.adjacentTo(line.chr(), line.start(), line.end()))
+			)
+		{
+			if (line.end()>next_output_line.end())
+			{
+				next_output_line.setEnd(line.end());
+				if (merge_names)
+				{
+					next_output_line.annotations()[0] += "," + line.annotations()[0];
+				}
+			}
+		}
+		else
+		{
+			lines_[next_output_index] = next_output_line;
+			++next_output_index;
+			next_output_line = line;
+		}
+	}
 
-    //add last line
-    lines_[next_output_index] = next_output_line;
+	//add last line
+	lines_[next_output_index] = next_output_line;
 
-    //remove excess lines
-    lines_.resize(next_output_index+1);
+	//remove excess lines
+	lines_.resize(next_output_index+1);
 }
 
 void BedFile::extend(int n)

@@ -2,20 +2,25 @@
 #include "Log.h"
 #include "Helper.h"
 #include "Exceptions.h"
-#include <QFile>
-#include <QTextStream>
-#include <QFileInfo>
 #include "Statistics.h"
 #include "Settings.h"
 #include "BedFile.h"
 #include "ChromosomalIndex.h"
 #include "VariantList.h"
-#include <QCoreApplication>
-#include <QXmlStreamWriter>
 #include "XmlHelper.h"
 #include "VariantFilter.h"
+#include "NGSHelper.h"
 
-ReportWorker::ReportWorker(QString sample_name, QMap<QString, QString> filters, const VariantList& variants, const QList<int>& variants_selected, QMap<QString, QString> preferred_transcripts, QString outcome, QString file_roi, QString file_bam, int min_cov, QStringList log_files, QString file_rep)
+#include <QFile>
+#include <QTextStream>
+#include <QFileInfo>
+#include <QCoreApplication>
+#include <QXmlStreamWriter>
+#include <QMessageBox>
+#include <QDesktopServices>
+#include <QApplication>
+
+ReportWorker::ReportWorker(QString sample_name, QMap<QString, QString> filters, const VariantList& variants, const QList<int>& variants_selected, QMap<QString, QString> preferred_transcripts, QString outcome, QString file_roi, QString file_bam, int min_cov, QStringList log_files, QString file_rep, bool calculate_depth)
 	: WorkerBase("Report generation")
 	, sample_name_(sample_name)
 	, filters_(filters)
@@ -28,6 +33,7 @@ ReportWorker::ReportWorker(QString sample_name, QMap<QString, QString> filters, 
 	, min_cov_(min_cov)
 	, genes_()
 	, log_files_(log_files)
+	, calculate_depth_(calculate_depth)
 	, file_rep_(file_rep)
 	, roi_()
 	, var_count_(variants_.count())
@@ -49,23 +55,7 @@ void ReportWorker::process()
 		var_count_ = filter.countPassing();
 
 		//load gene list file
-		QString filename = file_roi_.mid(0, file_roi_.length()-4) + "_genes.txt";
-		if (QFile::exists(filename))
-		{
-			genes_ = Helper::loadTextFile(filename, true, '#', true);
-			for(int i=0; i<genes_.count(); ++i)
-			{
-				genes_[i] = genes_[i].toUpper();
-			}
-			genes_.sort();
-		}
-
-		//remove duplicates from gene list
-		int dups = genes_.removeDuplicates();
-		if (dups!=0)
-		{
-			Log::warn("Gene list contains '" + filename + "' contains " + QString::number(dups) + " duplicates!");
-		}
+		genes_ = GeneSet::createFromFile(file_roi_.left(file_roi_.size()-4) + "_genes.txt");
 	}
 
 	roi_stats_.clear();
@@ -148,17 +138,16 @@ QString ReportWorker::inheritance(QString gene_info, bool color)
 	return output.join(",");
 }
 
-BedFile ReportWorker::writeCoverageReport(QTextStream& stream, QString bam_file, QString roi_file, const BedFile& roi, QStringList genes, int min_cov,  NGSD& db, QMap<QString, QString>* output)
+BedFile ReportWorker::writeCoverageReport(QTextStream& stream, QString bam_file, QString roi_file, const BedFile& roi, const GeneSet& genes, int min_cov,  NGSD& db, bool calculate_depth, QMap<QString, QString>* output)
 {
 	//get target region coverages (from NGSD or calculate)
 	QString avg_cov = "";
 	QCCollection stats;
-	if (isProcessingSystemTargetFile(bam_file, roi_file, db))
+	if (isProcessingSystemTargetFile(bam_file, roi_file, db) || !calculate_depth)
 	{
 		try
 		{
-			QCCollection tmp = db.getQCData(bam_file);
-			stats = tmp;
+			stats = db.getQCData(bam_file);
 		}
 		catch(...)
 		{
@@ -189,16 +178,16 @@ BedFile ReportWorker::writeCoverageReport(QTextStream& stream, QString bam_file,
 	for(int i=0; i<low_cov.count(); ++i)
 	{
 		BedLine& line = low_cov[i];
-		QStringList genes = db.genesOverlapping(line.chr(), line.start(), line.end(), 20); //extend by 20 to annotate splicing regions as well
+		GeneSet genes = db.genesOverlapping(line.chr(), line.start(), line.end(), 20); //extend by 20 to annotate splicing regions as well
 		line.annotations().append(genes.join(", "));
 	}
 
 	//group by gene name
-	QHash<QString, BedFile> grouped;
+	QHash<QByteArray, BedFile> grouped;
 	for (int i=0; i<low_cov.count(); ++i)
 	{
-		QStringList genes = low_cov[i].annotations()[0].split(",");
-		foreach(QString gene, genes)
+		QList<QByteArray> genes = low_cov[i].annotations()[0].split(',');
+		foreach(QByteArray gene, genes)
 		{
 			gene = gene.trimmed();
 
@@ -215,7 +204,7 @@ BedFile ReportWorker::writeCoverageReport(QTextStream& stream, QString bam_file,
 	if (!genes.isEmpty())
 	{
 		QStringList complete_genes;
-		foreach(const QString& gene, genes)
+		foreach(const QByteArray& gene, genes)
 		{
 			if (!grouped.contains(gene))
 			{
@@ -230,7 +219,7 @@ BedFile ReportWorker::writeCoverageReport(QTextStream& stream, QString bam_file,
 	if (!genes.isEmpty())
 	{
 		QStringList incomplete_genes;
-		foreach(const QString& gene, genes)
+		foreach(const QByteArray& gene, genes)
 		{
 			if (grouped.contains(gene))
 			{
@@ -265,7 +254,7 @@ BedFile ReportWorker::writeCoverageReport(QTextStream& stream, QString bam_file,
 	return low_cov;
 }
 
-void ReportWorker::writeCoverageReportCCDS(QTextStream& stream, QString bam_file, QStringList genes, int min_cov, NGSD& db, QMap<QString, QString>* output)
+void ReportWorker::writeCoverageReportCCDS(QTextStream& stream, QString bam_file, const GeneSet& genes, int min_cov, NGSD& db, QMap<QString, QString>* output)
 {
 	stream << "<p><b>Abdeckungsstatistik f&uuml;r CCDS</b></p>" << endl;
 	stream << "<table>";
@@ -277,7 +266,7 @@ void ReportWorker::writeCoverageReportCCDS(QTextStream& stream, QString bam_file
 		int gene_id = db.geneToApprovedID(gene);
 
 		//approved gene symbol
-		QString symbol = db.geneSymbol(gene_id);
+		QByteArray symbol = db.geneSymbol(gene_id);
 
 		//longest coding transcript
 		Transcript transcript = db.longestCodingTranscript(gene_id, Transcript::CCDS);
@@ -577,7 +566,7 @@ void ReportWorker::writeHTML()
 	///low-coverage analysis
 	if (file_bam_!="")
 	{
-		BedFile low_cov = writeCoverageReport(stream, file_bam_, file_roi_, roi_, genes_, min_cov_, db_, &roi_stats_);
+		BedFile low_cov = writeCoverageReport(stream, file_bam_, file_roi_, roi_, genes_, min_cov_, db_, calculate_depth_, &roi_stats_);
 
 		writeCoverageReportCCDS(stream, file_bam_, genes_, min_cov_, db_, &roi_stats_);
 
@@ -660,43 +649,47 @@ void ReportWorker::writeHTML()
 	writeHtmlFooter(stream);
 	outfile->close();
 
-	//validate written HTML file
-	QString validation_error = XmlHelper::isValidXml(temp_filename);
-	if (validation_error!="")
-	{
-		Log::warn("Generated report is not well-formed: " + validation_error);
-	}
-
-	//copy temp file to output folder
-	if (QFile::exists(file_rep_) && !QFile(file_rep_).remove())
-	{
-		THROW(FileAccessException, "Could not remove previous HTML report: " + file_rep_);
-	}
-	if (!QFile::rename(temp_filename, file_rep_))
-	{
-		THROW(FileAccessException, "Could not copy HTML report from temporary file " + temp_filename + " to " + file_rep_ + " !");
-	}
-
-	//copy report to archive folder
-	QString archive_folder = Settings::string("gsvar_report_archive");
-	if (archive_folder!="")
-	{
-		QString file_rep_copy = archive_folder + "\\" + QFileInfo(file_rep_).fileName();
-		if (QFile::exists(file_rep_copy) && !QFile::remove(file_rep_copy))
-		{
-			THROW(FileAccessException, "Could not remove previous HTML report in archive folder: " + file_rep_copy);
-		}
-		if (!QFile::copy(file_rep_, file_rep_copy))
-		{
-			THROW(FileAccessException, "Could not copy HTML report to archive folder: " + file_rep_copy);
-		}
-	}
+	validateAndCopyReport(temp_filename, file_rep_);
 
 	//write XML file to transfer folder
 	QString gsvar_variant_transfer = Settings::string("gsvar_variant_transfer");
 	if (gsvar_variant_transfer!="")
 	{
 		writeXML(gsvar_variant_transfer + "/" + QFileInfo(file_rep_).fileName().replace(".html", ".xml"));
+	}
+}
+
+void ReportWorker::validateAndCopyReport(QString from, QString to)
+{
+	//validate written HTML file
+	QString validation_error = XmlHelper::isValidXml(from);
+	if (validation_error!="")
+	{
+		Log::warn("Generated report at " + from + " is not well-formed: " + validation_error);
+	}
+
+	if (QFile::exists(to) && !QFile(to).remove())
+	{
+		THROW(FileAccessException, "Could not remove previous HTML report: " + to);
+	}
+	if (!QFile::rename(from, to))
+	{
+		THROW(FileAccessException, "Could not copy HTML report from temporary file " + from + " to " + to + " !");
+	}
+
+	//copy report to archive folder
+	QString archive_folder = Settings::string("gsvar_report_archive");
+	if (archive_folder!="")
+	{
+		QString file_rep_copy = archive_folder + "\\" + QFileInfo(to).fileName();
+		if (QFile::exists(file_rep_copy) && !QFile::remove(file_rep_copy))
+		{
+			THROW(FileAccessException, "Could not remove previous HTML report in archive folder: " + file_rep_copy);
+		}
+		if (!QFile::copy(to, file_rep_copy))
+		{
+			THROW(FileAccessException, "Could not copy HTML report to archive folder: " + file_rep_copy);
+		}
 	}
 }
 

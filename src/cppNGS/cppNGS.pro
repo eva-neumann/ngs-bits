@@ -27,7 +27,7 @@ LIBS += -L$$PWD/../../bin -lcppXML
 
 #include bamtools library
 INCLUDEPATH += $$PWD/../../bamtools/src/
-LIBS += -L$$PWD/../../bamtools/lib/ -l bamtools
+LIBS += -L$$PWD/../../bamtools/lib/ -lbamtools
 
 #include zlib library
 LIBS += -lz
@@ -51,7 +51,8 @@ SOURCES += BedFile.cpp \
     CnvList.cpp \
     LovdUploadFile.cpp \
     Phenotype.cpp \
-    Transcript.cpp
+    Transcript.cpp \
+    GeneSet.cpp
 
 HEADERS += BedFile.h \
 	Chromosome.h \
@@ -73,7 +74,8 @@ HEADERS += BedFile.h \
     CnvList.h \
     LovdUploadFile.h \
     Phenotype.h \
-    Transcript.h
+    Transcript.h \
+    GeneSet.h
 
 
 RESOURCES += \

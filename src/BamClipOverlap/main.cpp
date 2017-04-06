@@ -208,22 +208,6 @@ public:
 						}
 					}
 
-					//amplicon mode
-					if(getFlag("amplicon"))
-					{
-						bool read = qrand()%2;
-						if(read)
-						{
-							clip_forward_read = overlap;
-							clip_reverse_read = 0;
-						}
-						else
-						{
-							clip_forward_read = 0;
-							clip_reverse_read = overlap;
-						}
-					}
-
 					//verbose mode
 					if(verbose)	out << "forward read: name - " << QString::fromStdString(forward_read.Name) << ", region - chr" << forward_read.RefID << ":" << forward_read.Position << "-" << forward_read.GetEndPosition() << ", insert size: "  << forward_read.InsertSize << " bp; mate: " << forward_read.MatePosition << ", CIGAR " << NGSHelper::Cigar2QString(forward_read.CigarData) << ", overlap: " << overlap << " bp" << endl;
 					if(verbose)	out << "reverse read: name - " << QString::fromStdString(reverse_read.Name) << ", region - chr" << reverse_read.RefID << ":" << reverse_read.Position << "-" << reverse_read.GetEndPosition() << ", insert size: "  << reverse_read.InsertSize << " bp; mate: " << reverse_read.MatePosition << ", CIGAR " << NGSHelper::Cigar2QString(reverse_read.CigarData) << ", overlap: " << overlap << " bp" << endl;

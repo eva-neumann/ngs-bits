@@ -33,35 +33,35 @@ INSERT INTO processed_sample (id, sample_id, process_id, sequencing_run_id, lane
 INSERT INTO processed_sample (id, sample_id, process_id, sequencing_run_id, lane, operator_id, processing_system_id, project_id) VALUES (4, 4, 1, 2, 1, 2, 2, 2);
 
 --variant
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (1, 'chr1', 62713224, 62713224, 'C', 'G', 1);
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (2, 'chr1', 62713246, 62713246, 'G', 'A', 1);
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (3, 'chr1', 62728784, 62728784, 'A', 'G', 1);
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (4, 'chr1', 62728838, 62728838, 'T', 'C', 1);
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (5, 'chr1', 120539331, 120539331, 'C', 'T', 1);
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (6, 'chr1', 120611964, 120611964, 'G', 'A', 1);
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (7, 'chr1', 120612034, 120612034, 'T', 'G', 1);
-INSERT INTO variant (id, chr, start, end, ref, obs, genome_id) VALUES (8, 'chr1', 120612040, 120612040, '-', 'CCTCCTCCG', 1);
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (1, 'chr1', 62713224, 62713224, 'C', 'G');
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (2, 'chr1', 62713246, 62713246, 'G', 'A');
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (3, 'chr1', 62728784, 62728784, 'A', 'G');
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (4, 'chr1', 62728838, 62728838, 'T', 'C');
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (5, 'chr1', 120539331, 120539331, 'C', 'T');
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (6, 'chr1', 120611964, 120611964, 'G', 'A');
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (7, 'chr1', 120612034, 120612034, 'T', 'G');
+INSERT INTO variant (id, chr, start, end, ref, obs) VALUES (8, 'chr1', 120612040, 120612040, '-', 'CCTCCTCCG');
 
 --variant_classification
 INSERT INTO variant_classification (id, variant_id, class, comment) VALUES (1, 2, '5', 'pathogenic');
 INSERT INTO variant_classification (id, variant_id, class) VALUES (2, 8, '1');
 
 --detected variant NA12878
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality) VALUES (1, 1, 1, 'het', '');
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality) VALUES (2, 1, 8, 'hom', '');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype) VALUES (1, 1, 'het');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype) VALUES (1, 8, 'hom');
 
 --detected variant NA12879
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality) VALUES (3, 2, 1, 'het', '');
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality) VALUES (4, 2, 3, 'het', '');
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality) VALUES (5, 2, 4, 'het', '');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype) VALUES (2, 1, 'het');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype) VALUES (2, 3, 'het');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype) VALUES (2, 4, 'het');
 
 --detected variant NA12880
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality, comment) VALUES (6, 3, 1, 'hom', '', 'from NA12880');
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality) VALUES (7, 3, 4, 'het', '');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype, comment) VALUES (3, 1, 'hom', 'from NA12880');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype) VALUES (3, 4, 'het');
 
 --detected variant DUMMY
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality) VALUES (8, 4, 1, 'hom', '');
-INSERT INTO detected_variant (id, processed_sample_id, variant_id, genotype, quality, comment) VALUES (9, 4, 4, 'het', '', 'from DUMMY');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype) VALUES (4, 1, 'hom');
+INSERT INTO detected_variant (processed_sample_id, variant_id, genotype, comment) VALUES (4, 4, 'het', 'from DUMMY');
 
 --variant validation NA12878
 INSERT INTO variant_validation (id, user_id, sample_id, variant_id, genotype, status, comment) VALUES (1, 2, 1, 8, 'hom', 'false positive', 'val com1');

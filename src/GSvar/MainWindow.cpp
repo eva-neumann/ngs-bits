@@ -7,6 +7,7 @@
 #include "Log.h"
 #include "Helper.h"
 #include "GUIHelper.h"
+#include "GeneSet.h"
 #include <QDir>
 #include <QBitArray>
 #include <QDesktopServices>
@@ -45,6 +46,9 @@
 #include "LovdUploadFile.h"
 #include "PhenotypeSelector.h"
 #include "NGSHelper.h"
+#include "XmlHelper.h"
+#include "QCCollection.h"
+#include "MultiSampleDialog.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -54,7 +58,7 @@ MainWindow::MainWindow(QWidget *parent)
 	, var_widget_(new VariantDetailsDockWidget(this))
 	, busy_dialog_(nullptr)
 	, filename_()
-	, db_annos_updated_(false)
+	, db_annos_updated_(NO)
 	, igv_initialized_(false)
 	, last_report_path_(QDir::homePath())
 {
@@ -67,10 +71,23 @@ MainWindow::MainWindow(QWidget *parent)
 	var_widget_->raise();
 	connect(var_widget_, SIGNAL(jumbToRegion(QString)), this, SLOT(openInIGV(QString)));
 
+	//annotation menu button
+	auto anno_btn = new QToolButton();
+	anno_btn->setIcon(QIcon(":/Icons/Database.png"));
+	anno_btn->setToolTip("Re-annotate variant list with frequency information and comments from NGSD.");
+	anno_btn->setMenu(new QMenu());
+	anno_btn->menu()->addAction(ui_.actionDatabase);
+	connect(ui_.actionDatabase, SIGNAL(triggered(bool)), this, SLOT(annotateVariantsComplete()));
+	anno_btn->menu()->addAction(ui_.actionDatabaseROI);
+	connect(ui_.actionDatabaseROI, SIGNAL(triggered(bool)), this, SLOT(annotateVariantsROI()));
+	anno_btn->setPopupMode(QToolButton::InstantPopup);
+	ui_.tools->insertWidget(ui_.actionReport, anno_btn);
+
     //filter menu button
     auto filter_btn = new QToolButton();
     filter_btn->setIcon(QIcon(":/Icons/Filter.png"));
-    filter_btn->setMenu(new QMenu());
+	filter_btn->setToolTip("Apply default variant filters.");
+	filter_btn->setMenu(new QMenu());
     filter_btn->menu()->addAction(ui_.actionFiltersGermline);
     connect(ui_.actionFiltersGermline, SIGNAL(triggered(bool)), this, SLOT(applyDefaultFiltersGermline()));
 	filter_btn->menu()->addAction(ui_.actionFiltersTrio);
@@ -88,6 +105,7 @@ MainWindow::MainWindow(QWidget *parent)
 	connect(ui_.actionExit, SIGNAL(triggered()), this, SLOT(close()));
 	connect(ui_.vars, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(varsContextMenu(QPoint)));
 	connect(filter_widget_, SIGNAL(filtersChanged()), this, SLOT(filtersChanged()));
+	connect(filter_widget_, SIGNAL(targetRegionChanged()), this, SLOT(resetAnnoationStatus()));
 	connect(ui_.vars, SIGNAL(itemSelectionChanged()), this, SLOT(updateVariantDetails()));
 	connect(&filewatcher_, SIGNAL(fileChanged()), this, SLOT(handleInputFileChange()));
 	connect(ui_.vars, SIGNAL(itemDoubleClicked(QTableWidgetItem*)), this, SLOT(variantDoubleClicked(QTableWidgetItem*)));
@@ -132,11 +150,10 @@ void MainWindow::on_actionGeneSelector_triggered()
 {
 	if (filename_=="") return;
 
-	QString bam_file = getBamFile();
-	if (bam_file.isEmpty()) return;
-
 	//show dialog
-	GeneSelectorDialog dlg(bam_file, this);
+	QString sample_folder = QFileInfo(filename_).absolutePath();
+	QString sample_name = QFileInfo(filename_).baseName();
+	GeneSelectorDialog dlg(sample_folder, sample_name, this);
 	connect(&dlg, SIGNAL(openRegionInIGV(QString)), this, SLOT(openInIGV(QString)));
 	if (dlg.exec())
 	{
@@ -253,7 +270,14 @@ void MainWindow::openInIGV(QString region)
         }
 
 		//sample BAM file(s)
-		if (isTrio())
+		if (isSomatic())
+		{
+			QStringList bams = getBamFilesSomatic();
+			if (bams.count()==0) return;
+			dlg.addFile("reads tumor (BAM)", bams[0], true);
+			dlg.addFile("reads normal (BAM)", bams[1], true);
+		}
+		else if (isTrio())
 		{
 			QStringList bams = getBamFilesTrio();
 			if (bams.count()==0) return;
@@ -496,7 +520,7 @@ void MainWindow::loadFile(QString filename)
 	filter_widget_->reset(true, false);
 	filename_ = "";
 	filewatcher_.clearFile();
-	db_annos_updated_ = false;
+	db_annos_updated_ = NO;
 	igv_initialized_ = false;
 	ui_.vars->setRowCount(0);
 	ui_.vars->setColumnCount(0);
@@ -520,7 +544,7 @@ void MainWindow::loadFile(QString filename)
 
 		//update GUI
 		setWindowTitle(QCoreApplication::applicationName() + " - " + filename);
-		ui_.statusBar->showMessage("Loaded variant list with " + QString::number(variants_.count()) + " variant.");
+		ui_.statusBar->showMessage("Loaded variant list with " + QString::number(variants_.count()) + " variants.");
 
 		variantListChanged();
 		QApplication::restoreOverrideCursor();
@@ -563,6 +587,236 @@ void MainWindow::on_actionReport_triggered()
 {
 	if (variants_.count()==0) return;
 
+	//check if this is a germline or somatic
+	if (isSomatic())
+	{
+		generateReportSomatic();
+	}
+	else
+	{
+		generateReport();
+	}
+}
+
+void MainWindow::generateReportSomatic()
+{
+	QString roi_file = filter_widget_->targetRegion();
+	if (roi_file=="")
+	{
+		QMessageBox::warning(this, "Somatic report", "Report cannot be created because target region is not set.");
+		return;
+	}
+
+	//init
+	NGSD db;
+	int i_co_sp = variants_.annotationIndexByName("coding_and_splicing", true, true);
+	int i_snpq = variants_.annotationIndexByName("snp_q", true, true);
+	int i_tum_af = variants_.annotationIndexByName("tumor_af", true, true);
+	int i_tum_dp = variants_.annotationIndexByName("tumor_dp", true, true);
+	int i_nor_af = variants_.annotationIndexByName("normal_af", true, true);
+	int i_nor_dp = variants_.annotationIndexByName("normal_dp", true, true);
+	int i_cosm = variants_.annotationIndexByName("COSMIC", true, true);
+
+	//determine tumor/normal processed sample name
+	QString base_name = QFileInfo(filename_).baseName();
+	QStringList parts = base_name.replace("-", "_").replace(".", "_").split("_");
+	QString tumor = parts[0] + "_" + parts[1];
+	QString normal = parts[2] + "_" + parts[3];
+
+	//report header
+	QString temp_filename = Helper::tempFileName(".html");
+	QSharedPointer<QFile> outfile = Helper::openFileForWriting(temp_filename);
+	QTextStream stream(outfile.data());
+	ReportWorker::writeHtmlHeader(stream, tumor + "-" + normal);
+
+	stream << "<h4>Technischer Report zur bioinformatischen Analyse</h4>" << endl;
+	stream << "<p>Probe Tumor: " << tumor << " (" << db.getExternalSampleName(tumor) << ")" << endl;
+	stream << "<br />Probe Normal: " << normal << " (" << db.getExternalSampleName(normal) << ")" << endl;
+	stream << "<br />Prozessierungssystem: " << db.getProcessingSystem(tumor, NGSD::LONG) << endl;
+	stream << "<br />Datum: " << QDate::currentDate().toString("dd.MM.yyyy") << endl;
+	stream << "<br />User: " << Helper::userName() << endl;
+	stream << "<br />Analysesoftware: "  << QCoreApplication::applicationName() << " " << QCoreApplication::applicationVersion() << endl;
+	stream << "</p>" << endl;
+
+	//QC statistics
+	stream << "<p><b>Statistik Sequenzierung:</b>" << endl;
+	QCCollection stats = db.getQCData(tumor);
+	for (int i=0; i<stats.count(); ++i)
+	{
+		if (stats[i].accession()=="QC:2000025" || stats[i].accession()=="QC:2000030")
+		{
+			stream << "<br />Tumor - " << stats[i].name() << ": " << stats[i].asString();
+		}
+	}
+	stats = db.getQCData(normal);
+	for (int i=0; i<stats.count(); ++i)
+	{
+		if (stats[i].accession()=="QC:2000025" || stats[i].accession()=="QC:2000030")
+		{
+			stream << "<br />Nomal - " << stats[i].name() << ": " << stats[i].asString();
+		}
+	}
+	stream << "</p>" << endl;
+
+	//somatic variants
+	stream << "<p><b>Varianten:</b>" << endl;
+	QList<int> indices;
+	for (int i=0; i<variants_.count(); ++i)
+	{
+		if (ui_.vars->isRowHidden(i)) continue;
+		indices.append(i);
+	}
+	stream << "<br />Variantenzahl: " << indices.count() << endl;
+
+	stream << "<table>" << endl;
+	stream << "<tr> <td><b>Position</b></td> <td><b>Ref</b></td> <td><b>Obs</b></td> <td><b>Quality</b></td> <td><b><nobr>Tumor AF/DP</nobr></b></td> <td><b><nobr>Normal AF/DP</nobr></b></td> <td><b>COSMIC</b></td> <td><b>Details</b></td> </tr>" << endl;
+	foreach(int i, indices)
+	{
+		const Variant& variant = variants_[i];
+		stream << "<tr>" << endl;
+		stream << "<td><nobr>" << variant.chr().str() << ":" << variant.start() << "-" << variant.end() << "</nobr></td><td>" << variant.ref() << "</td><td>" << variant.obs() << "</td>";
+		stream << "<td>" << variant.annotations().at(i_snpq) << "</td>" << endl;
+		stream << "<td>" << variant.annotations().at(i_tum_af)  << "/" << variant.annotations().at(i_tum_dp) << "</td>" << endl;
+		stream << "<td>" << variant.annotations().at(i_nor_af)  << "/" << variant.annotations().at(i_nor_dp) << "</td>" << endl;
+		QByteArray tmp = variant.annotations().at(i_cosm);
+		tmp.replace(",", "");
+		stream << "<td>" << tmp << "</td>" << endl;
+		tmp = variant.annotations().at(i_co_sp);
+		tmp.replace(",", " ");
+		stream << "<td>" << tmp << "</td>" << endl;
+		stream << "</tr>" << endl;
+	}
+	stream << "</table>" << endl;
+	stream << "Position = chromosomale Position der Variante (hg19), Ref = Wildtyp-Allel, Obs = mutiertes Allel, AF / DF = Anteil der Variante an allen Reads (Allelfrequenz) / gesamte Sequenziertiefe, COSMIC = Catalogue of Somatic Mutations in Cancer, Details: Auswirkung der Variante auf cDNA- bzw. Proteinebene inkl. Transkript ID" << endl;
+	stream << "</p>" << endl;
+
+	//CNVs
+	BedFile roi = BedFile();
+	roi.load(roi_file);
+	ChromosomalIndex<BedFile> roi_idx(roi);
+	stream << "<p><b>CNVs:</b>" << endl;
+	stream << "<table>" << endl;
+	QString cnv_file = filename_;
+	cnv_file.replace(".GSvar", "_cnvs.tsv");
+	QStringList file = Helper::loadTextFile(cnv_file, true);
+	foreach(QString line, file)
+	{
+		if (line=="" || line.startsWith("##")) continue;
+		if (line.startsWith("#"))
+		{
+			stream << "<tr><td><b>" << line.replace("\t", "</b></td><td><b>") << "</b></td></tr>" << endl;
+		}
+		else
+		{
+			QStringList parts = line.split("\t");
+			if (roi_idx.matchingIndex(parts[0], parts[1].toInt(), parts[2].toInt())!=-1)
+			{
+				stream << "<tr><td>" << line.replace("\t", "</td><td>") << "</td></tr>" << endl;
+			}
+		}
+	}
+	stream << "</table>" << endl;
+	stream << "</p>" << endl;
+
+	//gaps
+	stream << "<p><b>Lückenstatistik:</b>" << endl;
+	stream << "<br />Zielregion: " << QFileInfo(roi_file).fileName();
+	GeneSet genes = GeneSet::createFromFile(roi_file);
+	if (!genes.isEmpty())
+	{
+		stream << "<br />Zielregion Gene (" << QString::number(genes.count()) << "): " << genes.join(", ") << endl;
+	}
+	stream << "<br />Zielregion Regionen: " << roi.count();
+	stream << "<br />Zielregion Basen: " << roi.baseCount();
+
+	BedFile roi_inter;
+	roi_inter.load(db.getProcessingSystem(tumor, NGSD::FILE));
+	roi_inter.intersect(roi);
+	if (roi_inter.baseCount()!=roi.baseCount())
+	{
+		QString message = "Gaps cannot be calculated because the selected target region is larger than the processing system target region:";
+		BedFile roi_missing;
+		roi_missing.load(roi_file);
+		roi_missing.subtract(roi_inter);
+		for (int i=0; i<std::min(10, roi_missing.count()); ++i)
+		{
+			message += "\n" + roi_missing[i].toString(true);
+		}
+		QMessageBox::warning(this, "Invalid target region", message);
+		return;
+	}
+
+	QString low_cov_file = filename_;
+	low_cov_file.replace(".GSvar", "_stat_lowcov.bed");
+	BedFile low_cov;
+	low_cov.load(low_cov_file);
+	low_cov.intersect(roi);
+	stream << "<br />Lücken Regionen: " << low_cov.count();
+	stream << "<br />Lücken Basen: " << low_cov.baseCount() << " (" << QString::number(100.0 * low_cov.baseCount()/roi.baseCount(), 'f', 2) << "%)";
+
+
+	//annotate low-coverage regions with gene names
+	for(int i=0; i<low_cov.count(); ++i)
+	{
+		BedLine& line = low_cov[i];
+		GeneSet genes = db.genesOverlapping(line.chr(), line.start(), line.end(), 20); //extend by 20 to annotate splicing regions as well
+		line.annotations().append(genes.join(", "));
+	}
+
+	//group by gene name
+	QHash<QByteArray, BedFile> grouped;
+	for (int i=0; i<low_cov.count(); ++i)
+	{
+		QList<QByteArray> genes = low_cov[i].annotations()[0].split(',');
+		foreach(QByteArray gene, genes)
+		{
+			gene = gene.trimmed();
+
+			//skip non-gene regions
+			// - remains of VEGA database in old HaloPlex designs
+			// - SNPs for sample identification
+			if (gene=="") continue;
+
+			grouped[gene].append(low_cov[i]);
+		}
+	}
+
+	stream << "<table>" << endl;
+	stream << "<tr><td><b>Gen</b></td><td><b>L&uuml;cken</b></td><td><b>Chromosom</b></td><td><b>Koordinaten (hg19)</b></td></tr>" << endl;
+	for (auto it=grouped.cbegin(); it!=grouped.cend(); ++it)
+	{
+		stream << "<tr> <td>" << endl;
+		const BedFile& gaps = it.value();
+		QString chr = gaps[0].chr().strNormalized(true);;
+		QStringList coords;
+		for (int i=0; i<gaps.count(); ++i)
+		{
+			coords << QString::number(gaps[i].start()) + "-" + QString::number(gaps[i].end());
+		}
+		stream << it.key() << "</td><td>" << gaps.baseCount() << "</td><td>" << chr << "</td><td>" << coords.join(", ") << endl;
+
+		stream << "</td> </tr>" << endl;
+	}
+	stream << "</table>" << endl;
+	stream << "</p>" << endl;
+
+	//close stream
+	ReportWorker::writeHtmlFooter(stream);
+	outfile->close();
+
+	//validate/store
+	QString file_rep = QFileDialog::getSaveFileName(this, "Export report file", last_report_path_ + "/" + base_name + "_report_" + QDate::currentDate().toString("yyyyMMdd") + ".html", "HTML files (*.html);;All files(*.*)");
+	ReportWorker::validateAndCopyReport(temp_filename, file_rep);
+
+	//show result info box
+	if (QMessageBox::question(this, "Report", "Report generated successfully!\nDo you want to open the report in your browser?")==QMessageBox::Yes)
+	{
+		QDesktopServices::openUrl(file_rep);
+	}
+}
+
+void MainWindow::generateReport()
+{
 	//check if NGSD annotations are present
 	if (variants_.annotationIndexByName("classification", true, false)==-1
 	 || variants_.annotationIndexByName("ihdb_allsys_hom", true, false)==-1
@@ -576,9 +830,12 @@ void MainWindow::on_actionReport_triggered()
 
 	//check if NGSD annotations are up-to-date
 	QString mod_date = QFileInfo(filename_).lastModified().toString("yyyy-MM-dd");
-	if (!db_annos_updated_ && QMessageBox::question(this, "Report", "NGSD re-annotation not performed!\nDo you want to continue with annotations from " + mod_date + "?")==QMessageBox::No)
+	if (db_annos_updated_==NO)
 	{
-		return;
+		if (QMessageBox::question(this, "Report", "NGSD re-annotation not performed!\nDo you want to continue with annotations from " + mod_date + "?")==QMessageBox::No)
+		{
+			return;
+		}
 	}
 
 	//determine visible variants
@@ -643,7 +900,7 @@ void MainWindow::on_actionReport_triggered()
 	busy_dialog_->init("Generating report", false);
 
 	//start worker in new thread
-	ReportWorker* worker = new ReportWorker(base_name, filter_widget_->appliedFilters(), variants_, dialog.selectedIndices(), preferred_transcripts_, dialog.outcome(), filter_widget_->targetRegion(), bam_file, dialog.minCoverage(), getLogFiles(), file_rep);
+	ReportWorker* worker = new ReportWorker(base_name, filter_widget_->appliedFilters(), variants_, dialog.selectedIndices(), preferred_transcripts_, dialog.outcome(), filter_widget_->targetRegion(), bam_file, dialog.minCoverage(), getLogFiles(), file_rep, dialog.calculateDepth());
 	connect(worker, SIGNAL(finished(bool)), this, SLOT(reportGenerationFinished(bool)));
 	worker->start();
 }
@@ -670,7 +927,7 @@ void MainWindow::reportGenerationFinished(bool success)
 	worker->deleteLater();
 }
 
-void MainWindow::on_actionDatabase_triggered()
+void MainWindow::annotateVariantsComplete()
 {
 	if (variants_.count()==0) return;
 
@@ -683,6 +940,26 @@ void MainWindow::on_actionDatabase_triggered()
 	worker->start();
 }
 
+
+void MainWindow::annotateVariantsROI()
+{
+	if (variants_.count()==0) return;
+
+	if (filter_widget_->targetRegion()=="")
+	{
+		QMessageBox::warning(this, "Error", "ROI-based variant annotation is only possible when a target region is selected!");
+		return;
+	}
+
+	//show busy dialog
+	busy_dialog_ = new BusyDialog("Database annotation", this);
+
+	//start worker
+	DBAnnotationWorker* worker = new DBAnnotationWorker(filename_, variants_, busy_dialog_, filter_widget_->targetRegion());
+	connect(worker, SIGNAL(finished(bool)), this, SLOT(databaseAnnotationFinished(bool)));
+	worker->start();
+}
+
 void MainWindow::databaseAnnotationFinished(bool success)
 {
 	delete busy_dialog_;
@@ -691,7 +968,7 @@ void MainWindow::databaseAnnotationFinished(bool success)
 	DBAnnotationWorker* worker = qobject_cast<DBAnnotationWorker*>(sender());
 	if (success)
 	{
-		db_annos_updated_ = true;
+		db_annos_updated_ = worker->targetRegionOnly() ? ROI : YES;
 		variantListChanged();
 	}
 	else
@@ -803,11 +1080,29 @@ void MainWindow::on_actionTrio_triggered()
 		QString reply = handler.getHttpReply(Settings::string("SampleStatus")+"restart_trio.php?user="+Helper::userName()+"&f=" + dlg.father() + "&m=" + dlg.mother() + "&c=" + dlg.child() + "&high_priority");
 		if (!reply.startsWith("Restart successful"))
 		{
-			QMessageBox::warning(this, "Trio analysis", "Queueing trio analysis failed:\n" + reply);
+			QMessageBox::warning(this, "Trio analysis", "Queueing analysis failed:\n" + reply);
 		}
 		else
 		{
-			QMessageBox::information(this, "Trio analysis", "Queueing trio analysis successful!");
+			QMessageBox::information(this, "Trio analysis", "Queueing analysis successful!");
+		}
+	}
+}
+
+void MainWindow::on_actionMultiSample_triggered()
+{
+	MultiSampleDialog dlg(this);
+	if (dlg.exec()==QDialog::Accepted)
+	{
+		HttpHandler handler;
+		QString reply = handler.getHttpReply(Settings::string("SampleStatus")+"restart_multi.php?user="+Helper::userName()+"&samples=" + dlg.samples().join(',')+"&status=" + dlg.status().join(','));
+		if (!reply.startsWith("Restart successful"))
+		{
+			QMessageBox::warning(this, "Multi-sample analysis", "Queueing analysis failed:\n" + reply);
+		}
+		else
+		{
+			QMessageBox::information(this, "Multi-sample analysis", "Queueing analysis successful!");
 		}
 	}
 }
@@ -886,18 +1181,17 @@ void MainWindow::on_actionGapsRecalculate_triggered()
 
 	//load genes list file
 	QApplication::setOverrideCursor(QCursor(Qt::BusyCursor));
-	QStringList genes;
-	QString genes_file = roi_file.mid(0, roi_file.length()-4) + "_genes.txt";
+	GeneSet genes;
+	QString genes_file = roi_file.left(roi_file.size()-4) + "_genes.txt";
 	if (QFile::exists(genes_file))
 	{
-		genes = Helper::loadTextFile(genes_file, true, '#', true);
-		std::transform(genes.begin(), genes.end(), genes.begin(), [](const QString& s) { return s.toUpper(); });
+		genes = GeneSet::createFromFile(genes_file);
 	}
 
 	//prepare dialog
 	QString sample_name = QFileInfo(bam_file).fileName().replace(".bam", "");
 	GapDialog dlg(this, sample_name, roi_file);
-	dlg.process(bam_file, roi, genes.toSet());
+	dlg.process(bam_file, roi, genes);
 	QApplication::restoreOverrideCursor();
 
 	//show dialog
@@ -920,6 +1214,14 @@ void MainWindow::on_actionGapsRecalculate_triggered()
 
 void MainWindow::on_actionExportVCF_triggered()
 {
+	//create BED file with 15 flanking bases around variants
+	BedFile roi;
+	for(int i=0; i<variants_.count(); ++i)
+	{
+		if (ui_.vars->isRowHidden(i)) continue;
+		roi.append(BedLine(variants_[i].chr(), variants_[i].start()-15, variants_[i].end()+15));
+	}
+
 	//load original VCF
 	QString orig_name = filename_;
 	orig_name.replace(".GSvar", "_var_annotated.vcf.gz");
@@ -929,7 +1231,7 @@ void MainWindow::on_actionExportVCF_triggered()
 		return;
 	}
 	VariantList orig_vcf;
-	orig_vcf.load(orig_name);
+	orig_vcf.load(orig_name, VariantList::VCF_GZ, &roi);
 	ChromosomalIndex<VariantList> orig_idx(orig_vcf);
 
 	//create new VCF
@@ -937,48 +1239,49 @@ void MainWindow::on_actionExportVCF_triggered()
 	output.copyMetaData(orig_vcf);
 	for(int i=0; i<variants_.count(); ++i)
 	{
-		if (!ui_.vars->isRowHidden(i))
+		if (ui_.vars->isRowHidden(i)) continue;
+		int hit_count = 0;
+		const Variant& v = variants_[i];
+		QVector<int> matches = orig_idx.matchingIndices(v.chr(), v.start()-10, v.end()+10);
+		foreach(int index, matches)
 		{
-			int hit_count = 0;
-			const Variant& v = variants_[i];
-			QVector<int> matches = orig_idx.matchingIndices(v.chr(), v.start()-10, v.end()+10);
-			foreach(int index, matches)
+			const Variant& v2 = orig_vcf[index];
+			if (v.isSNV()) //SNV
 			{
-				const Variant& v2 = orig_vcf[index];
-				if (v.isSNV()) //SNV
+				if (v.start()==v2.start() && v.obs()==v2.obs())
 				{
-					if (v.start()==v2.start() && v.obs()==v2.obs())
-					{
-						output.append(v2);
-						++hit_count;
-					}
-				}
-				else if (v.ref()=="-") //insertion
-				{
-					if (v.start()==v2.start() && v2.ref().count()==1 && v2.obs().mid(1)==v.obs())
-					{
-						output.append(v2);
-						++hit_count;
-					}
-				}
-				else if (v.obs()=="-") //deletion
-				{
-					if (v.start()-1==v2.start() && v2.obs().count()==1 && v2.ref().mid(1)==v.ref())
-					{
-						output.append(v2);
-						++hit_count;
-					}
-				}
-				else //complex
-				{
-					if (v.start()==v2.start() && v2.obs()==v.obs() && v2.ref()==v.ref())
-					{
-						output.append(v2);
-						++hit_count;
-					}
+					output.append(v2);
+					++hit_count;
 				}
 			}
-			if (hit_count!=1) THROW(ProgrammingException, "Found " + QString::number(hit_count) + " matching variants for " + v.toString() + " in VCF file. Exactly one expected!");
+			else if (v.ref()=="-") //insertion
+			{
+				if (v.start()==v2.start() && v2.ref().count()==1 && v2.obs().mid(1)==v.obs())
+				{
+					output.append(v2);
+					++hit_count;
+				}
+			}
+			else if (v.obs()=="-") //deletion
+			{
+				if (v.start()-1==v2.start() && v2.obs().count()==1 && v2.ref().mid(1)==v.ref())
+				{
+					output.append(v2);
+					++hit_count;
+				}
+			}
+			else //complex
+			{
+				if (v.start()==v2.start() && v2.obs()==v.obs() && v2.ref()==v.ref())
+				{
+					output.append(v2);
+					++hit_count;
+				}
+			}
+		}
+		if (hit_count!=1)
+		{
+			THROW(ProgrammingException, "Found " + QString::number(hit_count) + " matching variants for " + v.toString() + " in VCF file. Exactly one expected!");
 		}
 	}
 
@@ -1469,8 +1772,11 @@ void MainWindow::varsContextMenu(QPoint pos)
 	QTableWidgetItem* item = ui_.vars->itemAt(pos);
 	if (!item) return;
 
+	//init
 	bool ngsd_enabled = Settings::boolean("NGSD_enabled", true);
-	bool primerdesign_enabled = (Settings::string("PrimerDesign")!="");
+	const Variant& variant = variants_[item->row()];
+	int i_gene = variants_.annotationIndexByName("gene", true, true);
+	QStringList genes = QString(variant.annotations()[i_gene]).split(',', QString::SkipEmptyParts);
 
 	//create contect menu
 	QMenu menu(ui_.vars);
@@ -1482,10 +1788,6 @@ void MainWindow::varsContextMenu(QPoint pos)
 	sub_menu->addAction("Set validation status");
 	sub_menu->addAction("Set classification");
 	sub_menu->addAction("Edit comment");
-
-	int i_gene = variants_.annotationIndexByName("gene", true, true);
-	QString gene_str = variants_[item->row()].annotations()[i_gene];
-	QStringList genes = gene_str.split(',', QString::SkipEmptyParts);
 	if (!genes.isEmpty())
 	{
 		sub_menu = menu.addMenu(QIcon("://Icons/NGSD.png"), "Gene info");
@@ -1496,9 +1798,49 @@ void MainWindow::varsContextMenu(QPoint pos)
 		sub_menu->setEnabled(ngsd_enabled);
 	}
 
-	QAction* action;
-	action = menu.addAction(QIcon("://Icons/PrimerDesign.png"), "PrimerDesign");
-	action->setEnabled(primerdesign_enabled);
+	//PrimerDesign
+	QAction* action = menu.addAction(QIcon("://Icons/PrimerDesign.png"), "PrimerDesign");
+	action->setEnabled(Settings::string("PrimerDesign")!="");
+
+	//Alamut
+	if (Settings::string("Alamut")!="")
+	{
+		sub_menu = menu.addMenu(QIcon("://Icons/Alamut.png"), "Alamut");
+
+		//BAM
+		if (!isSomatic() && !isTrio())
+		{
+			sub_menu->addAction("BAM");
+		}
+
+		//genomic location
+		sub_menu->addAction(variant.chr().str() + ":" + QByteArray::number(variant.start()));
+
+		//genes
+		foreach(QString g, genes)
+		{
+			sub_menu->addAction(g);
+		}
+		sub_menu->addSeparator();
+
+		//transcript variants
+		int i_co_sp = variants_.annotationIndexByName("coding_and_splicing", true, true);
+		QList<QByteArray> transcripts = variant.annotations()[i_co_sp].split(',');
+		foreach(QByteArray transcript, transcripts)
+		{
+			QList<QByteArray> parts = transcript.split(':');
+			if (parts.count()>5)
+			{
+				QString gene = parts[0].trimmed();
+				QString trans_id = parts[1].trimmed();
+				QString cdna_change = parts[5].trimmed();
+				if  (trans_id!="" && cdna_change!="")
+				{
+					sub_menu->addAction(trans_id + ":" + cdna_change + " (" + gene + ")");
+				}
+			}
+		}
+	}
 
 	/* TODO
 	action = menu.addAction(QIcon(":/Icons/LOVD.png"), "Publish in LOVD");
@@ -1508,13 +1850,14 @@ void MainWindow::varsContextMenu(QPoint pos)
 	//Execute menu
 	action = menu.exec(ui_.vars->viewport()->mapToGlobal(pos));
 	if (!action) return;
+	QMenu* parent_menu = qobject_cast<QMenu*>(action->parent());
 
 	QByteArray text = action->text().toLatin1();
 	if (text=="Open variant in NGSD")
 	{
 		try
 		{
-			QString url = NGSD().url(filename_, variants_[item->row()]);
+			QString url = NGSD().url(filename_, variant);
 			QDesktopServices::openUrl(QUrl(url));
 		}
 		catch (DatabaseException& e)
@@ -1525,25 +1868,26 @@ void MainWindow::varsContextMenu(QPoint pos)
 	}
 	else if (text=="Search for position in NGSD")
 	{
-		const Variant& v = variants_[item->row()];
-		QString url = NGSD().urlSearch(v.chr().str() + ":" + QString::number(v.start()) + "-" + QString::number(v.end()));
+		QString url = NGSD().urlSearch(variant.chr().str() + ":" + QString::number(variant.start()) + "-" + QString::number(variant.end()));
 		QDesktopServices::openUrl(QUrl(url));
 	}
 	else if (text=="Set validation status")
 	{
 		try
 		{
-			ValidationDialog dlg(this, filename_, variants_[item->row()], variants_.annotationIndexByName("quality", true, true));
+			int i_quality = variants_.annotationIndexByName("quality", true, true);
+			ValidationDialog dlg(this, filename_, variant, i_quality);
 
 			if (dlg.exec()) //update DB
 			{
-				NGSD().setValidationStatus(filename_, variants_[item->row()], dlg.info());
+				NGSD().setValidationStatus(filename_, variant, dlg.info());
 
 				//update GUI
 				QByteArray status = dlg.info().status.toLatin1();
 				if (status=="true positive") status = "TP";
 				if (status=="false positive") status = "FP";
-				variants_[item->row()].annotations()[variants_.annotationIndexByName("validated", true, true)] = status;
+				int i_validated = variants_.annotationIndexByName("validated", true, true);
+				variants_[item->row()].annotations()[i_validated] = status;
 				variantListChanged();
 			}
 		}
@@ -1557,16 +1901,18 @@ void MainWindow::varsContextMenu(QPoint pos)
 	{
 		try
 		{
-			ClassificationDialog dlg(this, variants_[item->row()]);
+			ClassificationDialog dlg(this, variant);
 
 			if (dlg.exec())
 			{
 				//update DB
-					NGSD().setClassification(variants_[item->row()], dlg.classification(), dlg.comment());
+					NGSD().setClassification(variant, dlg.classification(), dlg.comment());
 
 				//update GUI
-				variants_[item->row()].annotations()[variants_.annotationIndexByName("classification", true, true)] = dlg.classification().replace("n/a", "").toLatin1();
-				variants_[item->row()].annotations()[variants_.annotationIndexByName("classification_comment", true, true)] = dlg.comment().toLatin1();
+				int i_class = variants_.annotationIndexByName("classification", true, true);
+				variants_[item->row()].annotations()[i_class] = dlg.classification().replace("n/a", "").toLatin1();
+				int i_class_comment = variants_.annotationIndexByName("classification_comment", true, true);
+				variants_[item->row()].annotations()[i_class_comment] = dlg.comment().toLatin1();
 				variantListChanged();
 			}
 		}
@@ -1581,7 +1927,7 @@ void MainWindow::varsContextMenu(QPoint pos)
 		try
 		{
 			bool ok = true;
-			QByteArray text = QInputDialog::getMultiLineText(this, "Variant comment", "Text: ", NGSD().comment(filename_, variants_[item->row()]), &ok).toUtf8();
+			QByteArray text = QInputDialog::getMultiLineText(this, "Variant comment", "Text: ", NGSD().comment(filename_, variant), &ok).toUtf8();
 
 			if (ok)
 			{
@@ -1621,8 +1967,7 @@ void MainWindow::varsContextMenu(QPoint pos)
 	{
 		try
 		{
-			const Variant& v = variants_[item->row()];
-			QString url = Settings::string("PrimerDesign")+"/index.php?user="+Helper::userName()+"&sample="+NGSD::sampleName(filename_)+"&chr="+v.chr().str()+"&start="+QString::number(v.start())+"&end="+QString::number(v.end())+"";
+			QString url = Settings::string("PrimerDesign")+"/index.php?user="+Helper::userName()+"&sample="+NGSD::sampleName(filename_)+"&chr="+variant.chr().str()+"&start="+QString::number(variant.start())+"&end="+QString::number(variant.end())+"";
 			QDesktopServices::openUrl(QUrl(url));
 		}
 		catch (Exception& e)
@@ -1643,10 +1988,23 @@ void MainWindow::varsContextMenu(QPoint pos)
 			return;
 		}
 	}
-	else if (genes.contains(text))
+	else if (parent_menu && parent_menu->title()=="Gene info")
 	{
 		GeneInfoDialog dlg(text, this);
 		dlg.exec();
+	}
+	else if (parent_menu && parent_menu->title()=="Alamut")
+	{
+		QStringList parts = action->text().split(" ");
+		if (parts.count()>=1)
+		{
+			QString value = parts[0];
+			if (value=="BAM")
+			{
+				value = "BAM<" + getBamFile();
+			}
+			QDesktopServices::openUrl(QUrl(Settings::string("Alamut")+"/show?request="+value));
+		}
 	}
 }
 
@@ -1760,9 +2118,41 @@ QStringList MainWindow::getBamFilesTrio()
 	return output;
 }
 
+QStringList MainWindow::getBamFilesSomatic()
+{
+	//determine tumor/normal processed sample name
+	QStringList parts = QFileInfo(filename_).baseName().replace("-", "_").replace(".", "_").split("_");
+	QString tumor = parts[0] + "_" + parts[1];
+	QString normal = parts[2] + "_" + parts[3];
+	QString project_folder = QFileInfo(QFileInfo(filename_).path()).path();
+
+	//tumor
+	QString bam_tumor = project_folder + "\\Sample_" + tumor + "\\" + tumor + ".bam";
+	if (!QFile::exists(bam_tumor))
+	{
+		QMessageBox::warning(this, "Missing tumor BAM file!", "Could not find BAM file at: " + bam_tumor);
+		return QStringList();
+	}
+
+	//normal
+	QString bam_normal = project_folder + "\\Sample_" + normal + "\\" + normal + ".bam";
+	if (!QFile::exists(bam_normal))
+	{
+		QMessageBox::warning(this, "Missing normal BAM file!", "Could not find BAM file at: " + bam_normal);
+		return QStringList();
+	}
+
+	return QStringList() << bam_tumor << bam_normal;
+}
+
 bool MainWindow::isTrio()
 {
 	return (variants_.filters().contains("trio_denovo"));
+}
+
+bool MainWindow::isSomatic()
+{
+	return (variants_.annotationIndexByName("tumor_af", true, false)!=-1 && variants_.annotationIndexByName("normal_af", true, false)!=-1);
 }
 
 void MainWindow::filtersChanged()
@@ -1897,8 +2287,8 @@ void MainWindow::filtersChanged()
 		}
 
 		//gene filter
-		QStringList genes_filter = filter_widget_->genes();
-		if (!genes_filter.empty())
+		GeneSet genes_filter = filter_widget_->genes();
+		if (!genes_filter.isEmpty())
 		{
 			filter.flagByGenes(genes_filter);
 			Log::perf("Applying gene filter took ", timer);
@@ -1955,6 +2345,14 @@ void MainWindow::filtersChanged()
 	}
 
 	QApplication::restoreOverrideCursor();
+}
+
+void MainWindow::resetAnnoationStatus()
+{
+	if (db_annos_updated_==ROI)
+	{
+		db_annos_updated_ = NO;
+	}
 }
 
 void MainWindow::addToRecentFiles(QString filename)

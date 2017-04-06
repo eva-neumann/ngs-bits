@@ -208,13 +208,13 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="actionDatabase"/>
    <addaction name="actionReport"/>
    <addaction name="separator"/>
    <addaction name="actionNGSD"/>
    <addaction name="actionSampleInformation"/>
    <addaction name="separator"/>
    <addaction name="actionTrio"/>
+   <addaction name="actionMultiSample"/>
    <addaction name="separator"/>
    <addaction name="actionGapsLookup"/>
    <addaction name="actionGapsRecalculate"/>
@@ -276,16 +276,11 @@
    </property>
   </action>
   <action name="actionDatabase">
-   <property name="icon">
-    <iconset>
-     <normaloff>Icons/Database.png</normaloff>
-     <normalon>:/Icons/Database.png</normalon>Icons/Database.png</iconset>
-   </property>
    <property name="text">
-    <string>Database</string>
+    <string>All</string>
    </property>
-   <property name="toolTip">
-    <string>Re-annotate variant list with frequency information and comments from NGSD.</string>
+   <property name="iconText">
+    <string>Complete annotation</string>
    </property>
   </action>
   <action name="actionGenderXY">
@@ -367,10 +362,10 @@
      <normaloff>:/Icons/Trio.png</normaloff>:/Icons/Trio.png</iconset>
    </property>
    <property name="text">
-    <string>Trigger trio analysis</string>
+    <string>Trigger trio analysis (child is the index).</string>
    </property>
    <property name="toolTip">
-    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Triggers a trio analysis.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+    <string>Trigger trio analysis (child is the index).</string>
    </property>
   </action>
   <action name="actionGapsLookup">
@@ -576,6 +571,32 @@
    </property>
    <property name="toolTip">
     <string>Apply default multi-sample filters.</string>
+   </property>
+  </action>
+  <action name="actionDatabaseROI">
+   <property name="text">
+    <string>Target region only</string>
+   </property>
+   <property name="iconText">
+    <string>Complete annotation</string>
+   </property>
+   <property name="toolTip">
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+   </property>
+  </action>
+  <action name="actionMultiSample">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="GSvar.qrc">
+     <normaloff>:/Icons/MultiSample.png</normaloff>:/Icons/MultiSample.png</iconset>
+   </property>
+   <property name="text">
+    <string>actionMultiSample</string>
+   </property>
+   <property name="toolTip">
+    <string>Trigger multi-sample analysis (affected vs. unaffected).</string>
    </property>
   </action>
  </widget>

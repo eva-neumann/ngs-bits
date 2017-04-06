@@ -4,6 +4,7 @@
 #include "Log.h"
 #include "Settings.h"
 #include "ChromosomalIndex.h"
+#include "NGSHelper.h"
 #include <QFileInfo>
 #include <QPair>
 
@@ -121,18 +122,21 @@ QString NGSD::sampleId(const QString& filename, bool throw_if_fails)
 QString NGSD::processedSampleId(const QString& filename, bool throw_if_fails)
 {
 	QStringList parts = QFileInfo(filename).baseName().append('_').split('_');
+	QString sample = parts[0];
+	QString ps_num = parts[1];
+	if (ps_num.size()>2) ps_num = ps_num.left(2);
 
 	//get sample ID
 	SqlQuery query = getQuery(); //use binding (user input)
 	query.prepare("SELECT ps.id FROM processed_sample ps, sample s WHERE s.name=:sample AND ps.sample_id=s.id AND ps.process_id=:psnum");
-	query.bindValue(":sample", parts[0]);
-	query.bindValue(":psnum", QString::number(parts[1].toInt()));
+	query.bindValue(":sample", sample);
+	query.bindValue(":psnum", QString::number(ps_num.toInt()));
 	query.exec();
 	if (query.size()==0)
 	{
 		if(throw_if_fails)
 		{
-			THROW(DatabaseException, "Processed sample name '" + parts[0] + "_" + parts[1] + "' not found in NGSD!");
+			THROW(DatabaseException, "Processed sample name '" + sample + "_" + ps_num + "' not found in NGSD!");
 		}
 		else
 		{
@@ -187,7 +191,7 @@ QString NGSD::variantId(const Variant& variant, bool throw_if_fails)
 {
 	SqlQuery query = getQuery(); //use binding user input (safety)
 	query.prepare("SELECT id FROM variant WHERE chr=:chr AND start='"+QString::number(variant.start())+"' AND end='"+QString::number(variant.end())+"' AND ref=:ref AND obs=:obs");
-	query.bindValue(":chr", variant.chr().str());
+	query.bindValue(":chr", variant.chr().strNormalized(true));
 	query.bindValue(":ref", variant.ref());
 	query.bindValue(":obs", variant.obs());
 	query.exec();
@@ -494,7 +498,7 @@ QVector<double> NGSD::getQCValues(const QString& accession, const QString& filen
 	return output;
 }
 
-void NGSD::annotate(VariantList& variants, QString filename)
+void NGSD::annotate(VariantList& variants, QString filename, BedFile roi)
 {
 	initProgress("NGSD annotation", true);
 
@@ -526,6 +530,18 @@ void NGSD::annotate(VariantList& variants, QString filename)
 	variants.removeAnnotationByName("validated", true, false);
 	variants.removeAnnotationByName("comment", true, false);
 
+	//load target region (if given)
+	QScopedPointer<ChromosomalIndex<BedFile>> roi_index;
+	if (roi.count()!=0)
+	{
+		if (!roi.isSorted())
+		{
+			THROW(ArgumentException, "Target region unsorted, but needs to be sorted for indexing!");
+		}
+
+		roi_index.reset(new ChromosomalIndex<BedFile>(roi));
+	}
+
 	//get required column indices
 	int ihdb_all_hom_idx = variants.addAnnotation("ihdb_allsys_hom", "Homozygous variant counts in NGSD independent of the processing system.");
 	int ihdb_all_het_idx =  variants.addAnnotation("ihdb_allsys_het", "Heterozygous variant counts in NGSD independent of the processing system.");
@@ -555,8 +571,18 @@ void NGSD::annotate(VariantList& variants, QString filename)
 	SqlQuery query = getQuery();
 	for (int i=0; i<variants.count(); ++i)
 	{
-		//variant id
 		Variant& v = variants[i];
+
+		//skip variant outside the target region
+		if (!roi_index.isNull())
+		{
+			if (roi_index->matchingIndex(v.chr(), v.start(), v.end())==-1)
+			{
+				continue;
+			}
+		}
+
+		//variant id
 		QByteArray v_id = variantId(v, false).toLatin1();
 
 		//variant classification
@@ -569,20 +595,9 @@ void NGSD::annotate(VariantList& variants, QString filename)
 		}
 		//time_cl += timer.elapsed();
 
-		//detected variant infos
+		//comment
 		//timer.restart();
-		int dv_id = -1;
-		QByteArray comment = "";
-		if (found_in_db)
-		{
-			query.exec("SELECT id, comment FROM detected_variant WHERE processed_sample_id='" + ps_id + "' AND variant_id='" + v_id + "'");
-			if (query.size()==1)
-			{
-				query.next();
-				dv_id = query.value(0).toInt();
-				comment = query.value(1).toByteArray();
-			}
-		}
+		QByteArray comment = !found_in_db ? "" : getValue("SELECT comment FROM detected_variant WHERE processed_sample_id='" + ps_id + "' AND variant_id='" + v_id + "'", true).toByteArray();
 		//time_dv += timer.elapsed();
 
 		//validation info
@@ -622,11 +637,10 @@ void NGSD::annotate(VariantList& variants, QString filename)
 		//comments other samples
 		//timer.restart();
 		QList<QByteArray> comments;
-		query.exec("SELECT id, comment FROM detected_variant WHERE variant_id='"+v_id+"' AND comment IS NOT NULL");
+		query.exec("SELECT comment FROM detected_variant WHERE variant_id='"+v_id+"' AND processed_sample_id!='" + ps_id + "' AND comment IS NOT NULL");
 		while(query.next())
 		{
-			if (query.value(0).toInt()==dv_id) continue;
-			QByteArray tmp = query.value(1).toByteArray().trimmed();
+			QByteArray tmp = query.value(0).toByteArray().trimmed();
 			if (tmp!="") comments.append(tmp);
 		}
 		if (comments.size()>0)
@@ -702,10 +716,10 @@ void NGSD::annotate(VariantList& variants, QString filename)
 
 	/*
 	qDebug() << "class   : " << time_cl;
-	qDebug() << "det. var: " << time_dv;
+	qDebug() << "com     : " << time_dv;
 	qDebug() << "val     : " << time_vv;
 	qDebug() << "val oth : " << time_vvo;
-	qDebug() << "comment : " << time_co;
+	qDebug() << "com oth : " << time_co;
 	qDebug() << "counts  : " << time_gt;
 	*/
 }
@@ -848,9 +862,7 @@ QString NGSD::comment(const QString& filename, const Variant& variant)
 
 QString NGSD::url(const QString& filename, const Variant& variant)
 {
-	QString dv_id = getValue("SELECT id FROM detected_variant WHERE processed_sample_id='" + processedSampleId(filename) + "' AND variant_id='" + variantId(variant) + "'", false).toString();
-
-	return Settings::string("NGSD")+"/variants/view/" + dv_id;
+	return Settings::string("NGSD")+"/variants/view/" + processedSampleId(filename) + "," + variantId(variant);
 }
 
 QString NGSD::url(const QString& filename)
@@ -1002,9 +1014,9 @@ int NGSD::geneToApprovedID(const QString& gene)
 	return -1;
 }
 
-QString NGSD::geneSymbol(int id)
+QByteArray NGSD::geneSymbol(int id)
 {
-	return getValue("SELECT symbol FROM gene WHERE id='" + QString::number(id) + "'").toString();
+	return getValue("SELECT symbol FROM gene WHERE id='" + QString::number(id) + "'").toByteArray();
 }
 
 QPair<QString, QString> NGSD::geneToApproved(const QString& gene)
@@ -1181,7 +1193,7 @@ QStringList NGSD::phenotypeToGenes(QString phenotype, bool recursive)
 	return genes;
 }
 
-QStringList NGSD::genesOverlapping(const Chromosome& chr, int start, int end, int extend)
+GeneSet NGSD::genesOverlapping(const Chromosome& chr, int start, int end, int extend)
 {
 	//init static data (load gene regions file from NGSD to memory)
 	static BedFile bed;
@@ -1192,26 +1204,23 @@ QStringList NGSD::genesOverlapping(const Chromosome& chr, int start, int end, in
 		query.exec("SELECT DISTINCT g.symbol, g.chromosome, gt.start_coding, gt.end_coding FROM gene g, gene_transcript gt WHERE g.id=gt.gene_id AND gt.start_coding IS NOT NULL AND gt.end_coding IS NOT NULL");
 		while(query.next())
 		{
-			bed.append(BedLine(query.value(1).toString(), query.value(2).toInt(), query.value(3).toInt(), QStringList() << query.value(0).toString()));
+			bed.append(BedLine(query.value(1).toString(), query.value(2).toInt(), query.value(3).toInt(), QList<QByteArray>() << query.value(0).toByteArray()));
 		}
 		bed.sort();
 		index.createIndex();
 	}
 
 	//create gene list
-	QStringList genes;
+	GeneSet genes;
 	QVector<int> matches = index.matchingIndices(chr, start-extend, end+extend);
 	foreach(int i, matches)
 	{
 		genes << bed[i].annotations()[0];
 	}
-	genes.sort();
-	genes.removeDuplicates();
-
 	return genes;
 }
 
-QStringList NGSD::genesOverlappingByExon(const Chromosome& chr, int start, int end, int extend)
+GeneSet NGSD::genesOverlappingByExon(const Chromosome& chr, int start, int end, int extend)
 {
 	//init static data (load gene regions file from NGSD to memory)
 	static BedFile bed;
@@ -1222,26 +1231,24 @@ QStringList NGSD::genesOverlappingByExon(const Chromosome& chr, int start, int e
 		query.exec("SELECT DISTINCT g.symbol, g.chromosome, ge.start, ge.end FROM gene g, gene_exon ge, gene_transcript gt WHERE g.type='protein-coding gene' AND ge.transcript_id=gt.id AND gt.gene_id=g.id");
 		while(query.next())
 		{
-			bed.append(BedLine(query.value(1).toString(), query.value(2).toInt(), query.value(3).toInt(), QStringList() << query.value(0).toString()));
+			bed.append(BedLine(query.value(1).toString(), query.value(2).toInt(), query.value(3).toInt(), QList<QByteArray>() << query.value(0).toByteArray()));
 		}
 		bed.sort();
 		index.createIndex();
 	}
 
 	//create gene list
-	QStringList genes;
+	GeneSet genes;
 	QVector<int> matches = index.matchingIndices(chr, start-extend, end+extend);
 	foreach(int i, matches)
 	{
 		genes << bed[i].annotations()[0];
 	}
-	genes.sort();
-	genes.removeDuplicates();
 
 	return genes;
 }
 
-BedFile NGSD::genesToRegions(QStringList genes, Transcript::SOURCE source, QString mode, bool fallback, bool annotate_transcript_names, QTextStream* messages)
+BedFile NGSD::genesToRegions(const GeneSet& genes, Transcript::SOURCE source, QString mode, bool fallback, bool annotate_transcript_names, QTextStream* messages)
 {
 	QString source_str = Transcript::sourceToString(source);
 
@@ -1263,7 +1270,7 @@ BedFile NGSD::genesToRegions(QStringList genes, Transcript::SOURCE source, QStri
 
 	//process input data
 	BedFile output;
-	foreach(QString gene, genes)
+	foreach(QByteArray gene, genes)
 	{
 		//get approved gene id
 		int id = geneToApprovedID(gene);
@@ -1278,7 +1285,7 @@ BedFile NGSD::genesToRegions(QStringList genes, Transcript::SOURCE source, QStri
 		Chromosome chr = "chr" + getValue("SELECT chromosome FROM gene WHERE id='" + QString::number(id) + "'").toString();
 
 		//prepare annotations
-		QStringList annos;
+		QList<QByteArray> annos;
 		annos << gene;
 
 		if (mode=="gene")
@@ -1293,7 +1300,7 @@ BedFile NGSD::genesToRegions(QStringList genes, Transcript::SOURCE source, QStri
 				if (annotate_transcript_names)
 				{
 					annos.clear();
-					annos << gene + " " + q_transcript.value(3).toString();
+					annos << gene + " " + q_transcript.value(3).toByteArray();
 				}
 				output.append(BedLine(chr, q_transcript.value(1).toInt(), q_transcript.value(2).toInt(), annos));
 				hits = true;
@@ -1309,7 +1316,7 @@ BedFile NGSD::genesToRegions(QStringList genes, Transcript::SOURCE source, QStri
 					if (annotate_transcript_names)
 					{
 						annos.clear();
-						annos << gene + " " + q_transcript_fallback.value(3).toString();
+						annos << gene + " " + q_transcript_fallback.value(3).toByteArray();
 					}
 
 					output.append(BedLine(chr, q_transcript_fallback.value(1).toInt(), q_transcript_fallback.value(2).toInt(), annos));
@@ -1333,7 +1340,7 @@ BedFile NGSD::genesToRegions(QStringList genes, Transcript::SOURCE source, QStri
 				if (annotate_transcript_names)
 				{
 					annos.clear();
-					annos << gene + " " + q_transcript.value(3).toString();
+					annos << gene + " " + q_transcript.value(3).toByteArray();
 				}
 
 				int trans_id = q_transcript.value(0).toInt();
@@ -1362,7 +1369,7 @@ BedFile NGSD::genesToRegions(QStringList genes, Transcript::SOURCE source, QStri
 					if (annotate_transcript_names)
 					{
 						annos.clear();
-						annos << gene + " " + q_transcript_fallback.value(3).toString();
+						annos << gene + " " + q_transcript_fallback.value(3).toByteArray();
 					}
 
 					int trans_id = q_transcript_fallback.value(0).toInt();

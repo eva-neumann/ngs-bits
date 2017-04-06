@@ -4,6 +4,7 @@
 #include "FilterColumnWidget.h"
 #include "NGSD.h"
 #include "Log.h"
+#include "ScrollableTextDialog.h"
 #include <QCheckBox>
 #include <QFileInfo>
 #include <QFileDialog>
@@ -43,6 +44,7 @@ FilterDockWidget::FilterDockWidget(QWidget *parent)
 	connect(ui_.roi_add_temp, SIGNAL(clicked()), this, SLOT(addRoiTemp()));
 	connect(ui_.roi_remove, SIGNAL(clicked()), this, SLOT(removeRoi()));
 	connect(ui_.rois, SIGNAL(currentIndexChanged(int)), this, SLOT(roiSelectionChanged(int)));
+	connect(ui_.roi_details, SIGNAL(clicked(bool)), this, SLOT(showTargetRegionDetails()));
 
 	connect(ui_.ref_add, SIGNAL(clicked()), this, SLOT(addRef()));
 	connect(ui_.ref_remove, SIGNAL(clicked()), this, SLOT(removeRef()));
@@ -116,8 +118,9 @@ void FilterDockWidget::loadTargetRegions()
 		subpanels.sort(Qt::CaseInsensitive);
 		foreach(QString file, subpanels)
 		{
-			QString name = QFileInfo(file).fileName();
-			name = name.left(name.size()-4);
+			if (file.endsWith("_amplicons.bed")) continue;
+
+			QString name = QFileInfo(file).fileName().replace(".bed", "");
 			ui_.rois->addItem("Sub-panel: " + name, Helper::canonicalPath(file));
 		}
 		ui_.rois->insertSeparator(ui_.rois->count());
@@ -230,6 +233,7 @@ void FilterDockWidget::reset(bool clear_roi, bool clear_off_target)
 	blockSignals(false);
 
     emit filtersChanged();
+	if (clear_roi) emit targetRegionChanged();
 }
 
 void FilterDockWidget::applyDefaultFilters()
@@ -506,21 +510,13 @@ void FilterDockWidget::setTargetRegion(QString roi_file)
 			break;
 		}
 	}
+
+	emit targetRegionChanged();
 }
 
-QStringList FilterDockWidget::genes() const
+GeneSet FilterDockWidget::genes() const
 {
-	QStringList genes = ui_.gene->text().split(',');
-
-	for(int i=0; i<genes.count(); ++i)
-	{
-		 genes[i] = genes[i].trimmed().toUpper();
-	}
-
-	genes.removeAll("");
-	genes.removeDuplicates();
-
-	return genes;
+	return GeneSet::createFromText(ui_.gene->text().toLatin1().replace(',','\n'));
 }
 
 QString FilterDockWidget::region() const
@@ -626,6 +622,7 @@ void FilterDockWidget::roiSelectionChanged(int index)
 	if(index!=0)
 	{
 		emit filtersChanged();
+		emit targetRegionChanged();
 	}
 	//qDebug() << __LINE__ << ui_.rois->completer() << ui_.rois->itemData(index).toString();
 }
@@ -653,6 +650,29 @@ void FilterDockWidget::regionChanged()
 void FilterDockWidget::filterColumnStateChanged()
 {
 	emit filtersChanged();
+}
+
+void FilterDockWidget::showTargetRegionDetails()
+{
+	QString roi = targetRegion();
+	if (roi=="") return;
+
+	//create text
+	QStringList text;
+	text << "Target region: " + QFileInfo(roi).baseName();
+	BedFile file;
+	file.load(roi);
+	text << "Regions: " + QString::number(file.count());
+	text << "Bases: " + QString::number(file.baseCount());
+	text << "";
+	text << "Genes:";
+	text << GeneSet::createFromFile(roi.left(roi.size()-4) + "_genes.txt").join(", ");
+
+	//show text
+	ScrollableTextDialog dlg(this);
+	dlg.setWindowTitle("Target region details");
+	dlg.setText(text.join("\n"));
+	dlg.exec();
 }
 
 void FilterDockWidget::addRef()

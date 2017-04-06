@@ -28,7 +28,7 @@ LIBS += -L$$PWD/../../bin -lcppNGS
 
 #include bamtools library
 INCLUDEPATH += $$PWD/../../bamtools/include/
-LIBS += -L$$PWD/../../bamtools/lib/ -l bamtools
+LIBS += -L$$PWD/../../bamtools/lib/ -lbamtools
 
 #include cppTFW library
 INCLUDEPATH += $$PWD/../cppTFW
@@ -53,7 +53,8 @@ HEADERS += \
         FastqFileStream_Test.h \
         FastaFileIndex_Test.h \
         QCCollection_Test.h \
-        StatisticsReads_Test.h
+        StatisticsReads_Test.h \
+		GeneSet_Test.h \
 
 SOURCES += \
         main.cpp

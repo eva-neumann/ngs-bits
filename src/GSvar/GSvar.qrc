@@ -32,5 +32,9 @@
         <file>Icons/LOVD.png</file>
         <file>Icons/box_checked.png</file>
         <file>Icons/box_unchecked.png</file>
+        <file>Icons/Alamut.png</file>
+        <file>Icons/MultiSample.png</file>
+        <file>Icons/Add_green.png</file>
+        <file>Icons/Add_red.png</file>
     </qresource>
 </RCC>

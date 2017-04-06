@@ -475,10 +475,8 @@ CREATE  TABLE IF NOT EXISTS `variant` (
   `gene` TEXT NULL DEFAULT NULL,
   `variant_type` TEXT NULL DEFAULT NULL,
   `coding` TEXT NULL DEFAULT NULL,
-  `genome_id` INT(11) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `variant_UNIQUE` (`chr` ASC, `start` ASC, `end` ASC, `ref`(255) ASC, `obs`(255) ASC),
-  INDEX `fk_variant_genome1` (`genome_id` ASC),
   INDEX `chr` (`chr` ASC),
   INDEX `start` (`start` ASC),
   INDEX `end` (`end` ASC),
@@ -486,11 +484,7 @@ CREATE  TABLE IF NOT EXISTS `variant` (
   INDEX `obs` (`obs`(255) ASC),
   INDEX `gene` (`gene`(50) ASC),
   INDEX `1000g` (`1000g` ASC),
-  INDEX `exac` (`exac` ASC),
-  CONSTRAINT `fk_variant_genome1`
-    FOREIGN KEY (`genome_id`)
-    REFERENCES `genome` (`id`)
-    ON UPDATE NO ACTION
+  INDEX `exac` (`exac` ASC)
 )
 ENGINE = InnoDB
 AUTO_INCREMENT = 1
@@ -560,20 +554,15 @@ DEFAULT CHARACTER SET = utf8;
 -- Table `detected_variant`
 -- -----------------------------------------------------
 CREATE  TABLE IF NOT EXISTS `detected_variant` (
-  `id` INT(11) NOT NULL AUTO_INCREMENT,
   `processed_sample_id` INT(11) NOT NULL,
   `variant_id` INT(11) NOT NULL,
   `genotype` ENUM('hom','het') NOT NULL,
-  `quality` TEXT NOT NULL,
   `comment` TEXT NULL DEFAULT NULL,
   `report` TINYINT(1) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `psid_variant_unique` (`processed_sample_id` ASC, `variant_id` ASC),
+  PRIMARY KEY (`processed_sample_id`, `variant_id`),
   INDEX `fk_detected_variant_variant1` (`variant_id` ASC),
-  INDEX `fk_detected_variant_processed_sample1` (`processed_sample_id` ASC),
   INDEX `comment` (`comment`(50) ASC),
   INDEX `report` (`report`),
-  INDEX `special_variantid_comment` (`variant_id` ASC, `comment`(50) ASC),
   CONSTRAINT `fk_processed_sample_has_variant_processed_sample1`
     FOREIGN KEY (`processed_sample_id`)
     REFERENCES `processed_sample` (`id`)

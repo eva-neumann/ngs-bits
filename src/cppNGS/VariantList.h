@@ -2,13 +2,15 @@
 #define VARIANTLIST_H
 
 #include "cppNGS_global.h"
-#include "BedFile.h"
 #include "VariantAnnotationDescription.h"
+#include "FastaFileIndex.h"
+#include "BedFile.h"
+#include "ChromosomalIndex.h"
+
 #include <QVector>
 #include <QStringList>
 #include <QtAlgorithms>
 #include <QVectorIterator>
-#include "FastaFileIndex.h"
 
 ///Genetic variant or mutation (1-based).
 class CPPNGSSHARED_EXPORT Variant
@@ -271,9 +273,10 @@ public:
 	}
 
     ///Loads a single-sample variant list from a file. Returns the format of the file.
-    Format load(QString filename, Format format=AUTO);
+	///If @p roi is given, only variants that fall into the target regions are loaded.
+	Format load(QString filename, Format format=AUTO, const BedFile* roi=nullptr);
     ///Stores the variant list to a file.
-    void store(QString filename, Format format=AUTO);
+	void store(QString filename, Format format=AUTO);
 
     ///Sorts the variants. The order is chromosome (numeric), position, ref, obs, quality (if desired).
     void sort(bool use_quality = false);
@@ -292,8 +295,8 @@ public:
     ///Shifts each non complex insert or deletion to the left as far as possible. Then, removes duplicates.
     void leftAlign(QString ref_file);
 
-    ///Checks if the variants are valid. Throws ArgumentException if not. The @p action string is appended to the error message after ', while'.
-    void checkValid(QString action) const;
+	///Checks if the variants are valid. Throws ArgumentException if not.
+	void checkValid() const;
 
 protected:
     QStringList comments_;
@@ -328,11 +331,15 @@ protected:
     };
 
     ///Loads the variant list from a TSV file.
-    void loadFromTSV(QString filename);
+	void loadFromTSV(QString filename, ChromosomalIndex<BedFile>* roi_idx=nullptr);
     ///Stores the variant list as a TSV file.
     void storeToTSV(QString filename);
-    ///Loadss the variant list from a VCF file.
-    void loadFromVCF(QString filename);
+	///Loads the variant list from a VCF file.
+	void loadFromVCF(QString filename, ChromosomalIndex<BedFile>* roi_idx=nullptr);
+	///Loads the variant list from a VCF.GZ file.
+	void loadFromVCFGZ(QString filename, ChromosomalIndex<BedFile>* roi_idx=nullptr);
+	///Processes a VCF line (both for VCF and VCF.GZ).
+	void processVcfLine(QList<QByteArray>& header_fields, int& line_number, QByteArray line, ChromosomalIndex<BedFile>* roi_idx=nullptr);
     ///Stores the variant list as a VCF file.
     void storeToVCF(QString filename);
 	///Converts an annotation type to a string (for VCF only)

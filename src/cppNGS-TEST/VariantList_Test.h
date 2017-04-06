@@ -26,6 +26,7 @@ private slots:
 
 		VariantList vl;
 		vl.load(TESTDATA("data_in/LeftAlign_in2.vcf"));
+		vl.checkValid();
 		vl.leftAlign(ref_file);
 		vl.store("out/LeftAlign_out2.vcf");
 		COMPARE_FILES("out/LeftAlign_out2.vcf", TESTDATA("data_out/LeftAlign_out2.vcf"));
@@ -38,6 +39,7 @@ private slots:
 
 		VariantList vl;
 		vl.load(TESTDATA("data_in/LeftAlign_in.tsv"));
+		vl.checkValid();
 		vl.leftAlign(ref_file);
 		vl.store("out/LeftAlign_out.tsv");
 		COMPARE_FILES("out/LeftAlign_out.tsv", TESTDATA("data_out/LeftAlign_out.tsv"));
@@ -50,6 +52,7 @@ private slots:
 
 		VariantList vl;
 		vl.load(TESTDATA("data_in/LeftAlign_in4.vcf"));
+		vl.checkValid();
 		vl.leftAlign(ref_file);
 		vl.store("out/LeftAlign_out4.vcf");
 		COMPARE_FILES("out/LeftAlign_out4.vcf", TESTDATA("data_out/LeftAlign_out4.vcf"));
@@ -69,8 +72,10 @@ private slots:
 	{
 		VariantList vl,vl2;
 		vl.load(TESTDATA("data_in/panel.vcf"));
+		vl.checkValid();
 		vl.sort();
 		vl2.load(TESTDATA("data_in/variantList_removeDuplicates.vcf"));
+		vl2.checkValid();
 		vl2.removeDuplicates(true);
 		//after removal of duplicates (and numerical sorting of vl), vl and vl2 should be the same
 		I_EQUAL(vl.count(),vl2.count());
@@ -85,8 +90,10 @@ private slots:
 	{
 		VariantList vl,vl2;
 		vl.load(TESTDATA("data_in/variantList_removeDuplicates_in.tsv"));
+		vl.checkValid();
 		vl.removeDuplicates(true);
 		vl2.load(TESTDATA("data_out/variantList_removeDuplicates_out.tsv"));
+		vl2.checkValid();
 		vl2.sort();
 		//after removal of duplicates vl and vl2 should be the same
 		I_EQUAL(vl.count(),vl2.count());
@@ -108,6 +115,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.vcf"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 14);
 		I_EQUAL(vl.comments().count(), 2);
 		S_EQUAL(vl.sampleNames()[0], QString("./Sample_GS120297A3/GS120297A3.bam"));
@@ -170,10 +178,35 @@ private slots:
 
 		//load a second time to check initialization
 		vl.load(TESTDATA("data_in/panel.vcf"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 14);
 		I_EQUAL(vl.annotations().count(), 27);
 		I_EQUAL(vl.comments().count(), 2);
 		S_EQUAL(vl.sampleNames()[0], QString("./Sample_GS120297A3/GS120297A3.bam"));
+	}
+
+	void loadFromVCF_withROI()
+	{
+		BedFile roi;
+		roi.append(BedLine("chr17", 72196820, 72196892));
+		roi.append(BedLine("chr18", 67904549, 67904670));
+
+		VariantList vl;
+		vl.load(TESTDATA("data_in/panel.vcf"), VariantList::VCF, &roi);
+		vl.checkValid();
+		I_EQUAL(vl.count(), 4);
+		I_EQUAL(vl.comments().count(), 2);
+		S_EQUAL(vl.sampleNames()[0], QString("./Sample_GS120297A3/GS120297A3.bam"));
+		I_EQUAL(vl.annotations().count(), 27);
+
+		X_EQUAL(vl[0].chr(), Chromosome("chr17"));
+		I_EQUAL(vl[0].start(), 72196887);
+		X_EQUAL(vl[1].chr(), Chromosome("chr17"));
+		I_EQUAL(vl[1].start(), 72196892);
+		X_EQUAL(vl[2].chr(), Chromosome("chr18"));
+		I_EQUAL(vl[2].start(), 67904549);
+		X_EQUAL(vl[3].chr(), Chromosome("chr18"));
+		I_EQUAL(vl[3].start(), 67904586);
 	}
 
 	void loadFromVCF_noSampleOrFormatColumn()
@@ -181,6 +214,7 @@ private slots:
 		VariantList vl;
 
 		vl.load(TESTDATA("data_in/VariantList_loadFromVCF_noSample.vcf"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 14);
 		I_EQUAL(vl.annotations().count(), 27);
 		I_EQUAL(vl.comments().count(), 2);
@@ -188,6 +222,7 @@ private slots:
 
 		vl.clear();
 		vl.load(TESTDATA("data_in/VariantList_loadFromVCF_noFormatSample.vcf"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 14);
 		I_EQUAL(vl.annotations().count(), 27);
 		I_EQUAL(vl.comments().count(), 2);
@@ -200,6 +235,7 @@ private slots:
 
 		//check annotation list
 		vl.load(TESTDATA("data_in/VariantList_loadFromVCF_undeclaredAnnotations.vcf"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 2);
 		I_EQUAL(vl.annotations().count(), 18);
 		QStringList names;
@@ -223,6 +259,7 @@ private slots:
 
 		VariantList vl;
 		vl.load(in);
+		vl.checkValid();
 		vl.store(out);
 
 		COMPARE_FILES(in,out);
@@ -233,11 +270,13 @@ private slots:
 		//store loaded file
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.vcf"));
+		vl.checkValid();
 		vl.store("out/VariantList_store_01.vcf");
 		vl.clear();
 
 		//reload and check that everything stayed the same
 		vl.load("out/VariantList_store_01.vcf");
+		vl.checkValid();
 		I_EQUAL(vl.count(), 14);
 		I_EQUAL(vl.comments().count(), 2);
 		S_EQUAL(vl.sampleNames()[0], QString("./Sample_GS120297A3/GS120297A3.bam"));
@@ -299,6 +338,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.tsv"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 75);
 		I_EQUAL(vl.annotations().count(), 27);
 		S_EQUAL(vl.annotations()[0].name(), QString("genotype"));
@@ -338,8 +378,36 @@ private slots:
 
 		//load a second time to check initialization
 		vl.load(TESTDATA("data_in/panel.tsv"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 75);
 		I_EQUAL(vl.annotations().count(), 27);
+	}
+
+	void loadFromTSV_withROI()
+	{
+		BedFile roi;
+		roi.append(BedLine("chr16", 74750405, 74808425));
+		roi.append(BedLine("chr19", 7607441, 7607564));
+
+		VariantList vl;
+		vl.load(TESTDATA("data_in/panel.tsv"), VariantList::TSV, &roi);
+		I_EQUAL(vl.count(), 4);
+		I_EQUAL(vl.annotations().count(), 27);
+		S_EQUAL(vl.annotations()[0].name(), QString("genotype"));
+		S_EQUAL(vl.annotations()[26].name(), QString("validated"));
+		I_EQUAL(vl.filters().count(), 3);
+		S_EQUAL(vl.filters()["low_DP"], QString("Depth less than 20 at variant location."));
+		S_EQUAL(vl.filters()["low_MQM"], QString("Mean mapping quality of alternate allele less than Q50."));
+		S_EQUAL(vl.filters()["low_QUAL"], QString("Variant quality less than Q30."));
+
+		X_EQUAL(vl[0].chr(), Chromosome("chr16"));
+		I_EQUAL(vl[0].start(), 74750405);
+		X_EQUAL(vl[1].chr(), Chromosome("chr16"));
+		I_EQUAL(vl[1].start(), 74808425);
+		X_EQUAL(vl[2].chr(), Chromosome("chr19"));
+		I_EQUAL(vl[2].start(), 7607441);
+		X_EQUAL(vl[3].chr(), Chromosome("chr19"));
+		I_EQUAL(vl[3].start(), 7607564);
 	}
 
 	void storeToTSV()
@@ -347,11 +415,13 @@ private slots:
 		//store loaded tsv file
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.tsv"));
+		vl.checkValid();
 		vl.store("out/VariantList_store_01.tsv");
 		vl.clear();
 
 		//reload and check that everything stayed the same
 		vl.load("out/VariantList_store_01.tsv");
+		vl.checkValid();
 		I_EQUAL(vl.count(), 75);
 
 		I_EQUAL(vl.annotations().count(), 27);
@@ -383,6 +453,7 @@ private slots:
 
 		//load a second time to check initialization
 		vl.load(TESTDATA("data_in/panel.tsv"));
+		vl.checkValid();
 		I_EQUAL(vl.count(), 75);
 		I_EQUAL(vl.annotations().count(), 27);
 	}
@@ -392,11 +463,13 @@ private slots:
 		//store loaded vcf file
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.vcf"));
+		vl.checkValid();
 		vl.store("out/VariantList_convertVCFtoTSV.tsv");
 		vl.clear();
 
 		//reload and check that no information became incorrect (vcf-specific things like annotation dimensions and types are still lost)
 		vl.load("out/VariantList_convertVCFtoTSV.tsv");
+		vl.checkValid();
 		I_EQUAL(vl.count(), 14);
 		I_EQUAL(vl.annotations().count(), 27);
 		I_EQUAL(vl.comments().count(), 1);
@@ -434,11 +507,13 @@ private slots:
 		//store loaded vcf file
 		VariantList vl;
 		vl.load(TESTDATA("data_in/VariantList_emptyDescriptions.vcf"));
+		vl.checkValid();
 		vl.store("out/VariantList_emptyDescriptions_fixed.vcf");
 		vl.clear();
 
 		VariantList vl2;
 		vl2.load("out/VariantList_emptyDescriptions_fixed.vcf");
+		vl2.checkValid();
 		I_EQUAL(vl2.count(), 14);
 		I_EQUAL(vl2.annotations().count(), 27);
 		foreach(VariantAnnotationHeader ah, vl2.annotations())
@@ -459,6 +534,7 @@ private slots:
 	{
 		VariantList vl;
 		VariantList::Format format = vl.load(TESTDATA("data_in/VariantList_load_zipped.vcf.gz"));
+		vl.checkValid();
 		I_EQUAL(format, VariantList::VCF_GZ);
 		I_EQUAL(vl.count(), 157);
 		I_EQUAL(vl.annotations().count(), 75);
@@ -495,6 +571,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.tsv"));
+		vl.checkValid();
 		I_EQUAL(vl.annotationIndexByName("genotype", true, false), 0);
 		I_EQUAL(vl.annotationIndexByName("genotype", false, false), 0);
 		I_EQUAL(vl.annotationIndexByName("validated", true, false), 26);
@@ -508,6 +585,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/sort_in.vcf"));
+		vl.checkValid();
 		vl.sort();
 		vl.store("out/sort_out.vcf");
 		COMPARE_FILES("out/sort_out.vcf",TESTDATA("data_out/sort_out.vcf"));
@@ -518,6 +596,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/sort_in.tsv"));
+		vl.checkValid();
 		vl.sort();
 		vl.store("out/sort_out.tsv");
 		COMPARE_FILES("out/sort_out.tsv",TESTDATA("data_out/sort_out.tsv"));
@@ -529,6 +608,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.vcf"));
+		vl.checkValid();
 		vl.sort(true);
 		//entries should be sorted numerically
 
@@ -560,6 +640,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/sort_in_qual.tsv"));
+		vl.checkValid();
 		vl.sort(true);
 		vl.store("out/sort_out_qual.tsv");
 		COMPARE_FILES("out/sort_out_qual.tsv",TESTDATA("data_out/sort_out_qual.tsv"));
@@ -570,6 +651,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.vcf"));
+		vl.checkValid();
 		vl.sortByFile(TESTDATA("data_in/variantList_sortbyFile.fai"));
 		vl.store("out/sortByFile.vcf");
 		//entries should be sorted by variantList_sortbyFile.fai, which is reverse-numeric concerning chromosomes
@@ -601,6 +683,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/sort_in.tsv"));
+		vl.checkValid();
 		vl.sortByFile(TESTDATA("data_in/variantList_sortbyFile.fai"));
 		vl.store("out/sortByFile_out.tsv");
 		COMPARE_FILES("out/sortByFile_out.tsv",TESTDATA("data_out/sortByFile_out.tsv"));
@@ -610,6 +693,7 @@ private slots:
 	{
 		VariantList vl;
 		vl.load(TESTDATA("data_in/panel.tsv"));
+		vl.checkValid();
 		int index = vl.annotationIndexByName("depth", true, false);
 
 		I_EQUAL(vl.annotations().count(), 27);
