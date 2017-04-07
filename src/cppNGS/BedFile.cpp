@@ -21,19 +21,12 @@ BedLine::BedLine()
 {
 }
 
-<<<<<<< HEAD
-BedLine::BedLine(const Chromosome& chr, int start, int end, const QStringList& annotations)
-    : chr_(chr)
-    , start_(start)
-    , end_(end)
-    , annotations_(annotations)
-=======
+
 BedLine::BedLine(const Chromosome& chr, int start, int end, const QList<QByteArray>& annotations)
 	: chr_(chr)
 	, start_(start)
 	, end_(end)
 	, annotations_(annotations)
->>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 {
 }
 
@@ -47,26 +40,6 @@ bool BedLine::operator<(const BedLine& rhs) const
 
 BedLine BedLine::fromString(QString str)
 {
-<<<<<<< HEAD
-    //normalize
-    str = str.replace(',', ""); //remove thousands separator
-    str = str.replace(':', '\t').replace('-', '\t'); //also accept "[c]:[s]-[e]"
-    str = str.replace(QRegExp("[ ]+"), "\t"); //also accept "[c] [s] [e]" (with any number of spaces)
-
-    //split
-    QStringList parts = str.split('\t');
-    if (parts.count()<3) return BedLine();
-
-    //convert
-    try
-    {
-        return BedLine(parts[0], Helper::toInt(parts[1]), Helper::toInt(parts[2]));
-    }
-    catch(...)
-    {
-        return BedLine();
-    }
-=======
 	//normalize
 	str = str.replace(',', ""); //remove thousands separator
 	str = str.replace(':', '\t').replace('-', '\t'); //also accept "[c]:[s]-[e]"
@@ -85,7 +58,6 @@ BedLine BedLine::fromString(QString str)
 	{
 		return BedLine();
 	}
->>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 BedFile::BedFile()
@@ -129,52 +101,6 @@ QSet<Chromosome> BedFile::chromosomes() const
 
 void BedFile::load(QString filename)
 {
-<<<<<<< HEAD
-    clear();
-
-    //parse from stream
-    QSharedPointer<QFile> file = Helper::openFileForReading(filename, true);
-    while(!file->atEnd())
-    {
-        QByteArray line = file->readLine();
-        while (line.endsWith('\n') || line.endsWith('\r')) line.chop(1);
-
-        //skip empty lines
-        if(line.length()==0) continue;
-
-        //store headers
-        if (line.startsWith("#") || line.startsWith("track ") || line.startsWith("browser "))
-        {
-            headers_.append(line);
-            continue;
-        }
-
-        //error when less than 3 fields
-        QList<QByteArray> fields = line.split('\t');
-        if (fields.count()<3)
-        {
-            THROW(FileParseException, "BED file line with less than three fields found: '" + line.trimmed() + "'");
-        }
-
-        //error when chromosome is empty
-        if (fields[0]=="")
-        {
-            THROW(FileParseException, "Empty BED file chromosome field '" + fields[0] + "'!");
-        }
-
-        //error on position converion
-        int start_pos = Helper::toInt(fields[1], "start position", line);
-        int end_pos = Helper::toInt(fields[2], "end position", line);
-
-        //create line
-        QStringList annos;
-        for (int i=3; i<fields.count(); ++i)
-        {
-            annos.append(fields[i]);
-        }
-        append(BedLine(fields[0], start_pos+1, end_pos, annos));
-    }
-=======
 	clear();
 
 	//parse from stream
@@ -203,35 +129,10 @@ void BedFile::load(QString filename)
 
 		append(BedLine(fields[0], atoi(fields[1].data())+1, atoi(fields[2].data()), fields.mid(3)));
 	}
->>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 void BedFile::store(QString filename) const
 {
-<<<<<<< HEAD
-    //open stream
-    QSharedPointer<QFile> file = Helper::openFileForWriting(filename, true);
-    QTextStream stream(file.data());
-
-    //write headers
-    foreach(const QByteArray& header, headers_)
-    {
-        stream << header.trimmed()  << "\n";
-    }
-
-    //write contents
-    foreach(const BedLine& line, lines_)
-    {
-        QString line_text = line.chr().str() + "\t" + QString::number(line.start()-1) + "\t" + QString::number(line.end());
-        stream << line_text.toLatin1();
-        if (line.annotations().size()>0)
-        {
-            QString add_text = "\t" + line.annotations().join("\t");
-            stream << add_text.toLatin1();
-        }
-        stream << "\n";
-    }
-=======
 	//open stream
 	QSharedPointer<QFile> file = Helper::openFileForWriting(filename, true);
 	QTextStream stream(file.data());
@@ -253,26 +154,10 @@ void BedFile::store(QString filename) const
 		}
 		stream << "\n";
 	}
->>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 QString BedFile::toText() const
 {
-<<<<<<< HEAD
-    QString output;
-
-    foreach(const BedLine& line, lines_)
-    {
-        output.append(line.chr().str() + "\t" + QString::number(line.start()-1) + "\t" + QString::number(line.end()));
-        if (line.annotations().count()!=0)
-        {
-            output.append("\t" + line.annotations().join("\t"));
-        }
-        output.append("\n");
-    }
-
-    return output;
-=======
 	QString output;
 
 	foreach(const BedLine& line, lines_)
@@ -286,7 +171,6 @@ QString BedFile::toText() const
 	}
 
 	return output;
->>>>>>> 170dbfbc1ce014efe426b9478a8cd91c02238344
 }
 
 void BedFile::clearAnnotations()
@@ -413,183 +297,114 @@ void BedFile::add(const BedFile& file2)
 }
 
 
+
 void BedFile::subtract(const BedFile& file2)
 {
-    QTextStream outstream(stdout);
-    QTime timer;
-    QList<QString> timings;
-outstream << "Huhu " << endl;
-    timer.start();
-    auto start = get_time::now(); //use auto keyword to minimize typing strokes :)
-    ChromosomalIndex<BedFile> file2_idx(file2);
-    auto end = get_time::now();
-    auto diff = end - start;
-    outstream << "Elapsed time is :  "<< std::chrono::duration_cast<ns>(diff).count()<<" ns "<< endl;
-    timings.append("Interval tree   file 2: " + Helper::elapsedTime(timer));
-    timer.restart();
+   ChromosomalIndex<BedFile> file2_idx(file2);
 
     //remove annotations
-//    clearAnnotations();
-//    timings.append("Clear annotations: " + Helper::elapsedTime(timer));
-//    timer.restart();
+    clearAnnotations();
 
-//    //subtract
-//    int removed_lines = 0;
-//    for (int i=0; i<lines_.count(); ++i)
-//    {
-//        int start_this = lines_[i].start();
-//        int stop_this = lines_[i].end();
-//        QVector<int> matches_file2 = file2_idx.matchingIndices(lines_[i].chr(), lines_[i].start(), lines_[i].end());
-//        std::sort(matches_file2.begin(), matches_file2.end(), MinStartPositionContainer<BedFile>(*this));
-//        //outstream << "BedFile::subtract matches_file2: " << endl;
-//        timings.append("BedFile::subtract matches_file2: " + Helper::elapsedTime(timer));
-//        timer.restart();
-//        if (matches_file2.empty())
-//        {
-//            continue;
-//        }
+    //subtract
+    int removed_lines = 0;
+    for (int i=0; i<lines_.count(); ++i)
+    {
+        int start_this = lines_[i].start();
+        int stop_this = lines_[i].end();
+        QVector<int> matches_file2 = file2_idx.matchingIndices(lines_[i].chr(), start_this, stop_this);
+        std::sort(matches_file2.begin(), matches_file2.end(), MinStartPositionContainer<BedFile>(file2));
+        if (matches_file2.empty())
+        {
+            continue;
+        }
 
-//        int start_other=file2[matches_file2[0]].start();
-//        int stop_other=file2[matches_file2[0]].end();
-//        bool append_line=false;
-//        int j=1;
+        int start_other=file2[matches_file2[0]].start();
+        int stop_other=file2[matches_file2[0]].end();
+        bool append_line=false;
+        int j=1;
 
-//        // subtract all (make region invalid)
-//        if (start_other<=start_this && stop_other>=stop_this)
-//        {
-//            lines_[i].setStart(0);
-//            lines_[i].setEnd(0);
-//            ++removed_lines;
-//            continue;
-//        }
-//        // proceed until either the whole current_merged interval is subtracted or all overlapping intervals are processed
-//        while ((start_this < stop_this) && (j < matches_file2.count()))
-//        {
-//            // go ahead if the matching interval of other is covered by the current interval
-//            if (file2[matches_file2[j]].end() <= stop_other)
-//            {
-//                ++j;
-//                continue;
-//            }
-//            // merge the current and the next interval if they overlap
-//            if (file2[matches_file2[j]].start() <= stop_other)
-//            {
-//                ++j;
-//                stop_other = file2[matches_file2[j]].end();
-//                continue;
-//            }
+        // subtract all (make region invalid)
+        if (start_other<=start_this && stop_other>=stop_this)
+        {
+            lines_[i].setStart(0);
+            lines_[i].setEnd(0);
+            ++removed_lines;
+            continue;
+        }
+        // proceed until either the whole current_merged interval is subtracted or all overlapping intervals are processed
+        while ((start_this < stop_this) && (j < matches_file2.count()))
+        {
+            // go ahead if the matching interval of other is covered by the current interval
+            if (file2[matches_file2[j]].end() <= stop_other)
+            {
+                ++j;
+                continue;
+            }
+            // merge the current and the next interval if they overlap
+            if (file2[matches_file2[j]].start() <= stop_other)
+            {
+                stop_other = file2[matches_file2[j]].end();
+                ++j;
+                continue;
+            }
 
-//            // left part is remaining
-//            if (start_other > start_this)
-//            {
-//                //create new region (left part)
-//                if (!append_line)
-//                {
-//                    lines_[i].setStart(start_this);
-//                    lines_[i].setEnd(start_other-1);
-//                    append_line=true;
-//                }
-//                else
-//                {
-//                    append(BedLine(lines_[i].chr(), start_this, start_other-1));
-//                }
-//            }
-//            start_this=stop_other;
-//            start_other=file2[matches_file2[j]].start();
-//            stop_other=file2[matches_file2[j]].end();
-//            ++j;
-//        }
-//        // left part is remaining
-//        if (start_other > start_this)
-//        {
-//            //create new region (left part)
-//            if (!append_line)
-//            {
-//                lines_[i].setStart(start_this);
-//                lines_[i].setEnd(start_other-1);
-//                append_line=true;
-//            }
-//            else
-//            {
-//                append(BedLine(lines_[i].chr(), start_this, start_other-1));
-//            }
-//        }
-//        // create new region for the remaining right part of the interval
-//        if (stop_other < stop_this)
-//        {
-//            //create new region (left part)
-//            if (!append_line)
-//            {
-//                lines_[i].setStart(stop_other+1);
-//                lines_[i].setEnd(stop_this);
-//                append_line=true;
-//            }
-//            else
-//            {
-//                append(BedLine(lines_[i].chr(), stop_other+1, stop_this));
-//            }
-//        }
-//    }
-//    outstream << "BedFile::subtract All subtracted: "<< endl;
-//    timings.append("BedFile::subtract All subtracted: " + Helper::elapsedTime(timer));
-//    timer.restart();
-//    //remove invalid lines, if necessary
-//    if (removed_lines!=0) removeInvalidLines();
-//    timings.append("BedFile::subtract remove invalid lines: " + Helper::elapsedTime(timer));
-
-//    foreach(const QString& line, timings)
-//    {
-//        outstream << line << endl;
-//    }
-
-
+            // left part is remaining
+            if (start_other > start_this)
+            {
+                //create new region (left part)
+                if (!append_line)
+                {
+                    lines_[i].setStart(start_this);
+                    lines_[i].setEnd(start_other-1);
+                    append_line=true;
+                }
+                else
+                {
+                    append(BedLine(lines_[i].chr(), start_this, start_other-1));
+                }
+            }
+            start_this=stop_other;
+            start_other=file2[matches_file2[j]].start();
+            stop_other=file2[matches_file2[j]].end();
+            ++j;
+        }
+        // left part is remaining
+        if (start_other > start_this)
+        {
+            //create new region (left part)
+            if (!append_line)
+            {
+                lines_[i].setStart(start_this);
+                lines_[i].setEnd(start_other-1);
+                append_line=true;
+            }
+            else
+            {
+                append(BedLine(lines_[i].chr(), start_this, start_other-1));
+            }
+        }
+        // create new region for the remaining right part of the interval
+        if (stop_other < stop_this)
+        {
+            //create new region (left part)
+            if (!append_line)
+            {
+                lines_[i].setStart(stop_other+1);
+                lines_[i].setEnd(stop_this);
+                append_line=true;
+            }
+            else
+            {
+                append(BedLine(lines_[i].chr(), stop_other+1, stop_this));
+            }
+        }
+    }
+    //remove invalid lines, if necessary
+    if (removed_lines!=0) removeInvalidLines();
 }
 
 
 
-
-/// ToDo Compare time! Remove foreach and reserve where possible
-/// Profile again!
-//void BedFile::subtract(const BedFile& file2)
-//{
-//    QTextStream outstream(stdout);
-//    QTime timer;
-//    QList<QString> timings;
-//    timer.start();
-//    ChromosomalIndex<BedFile> file1_idx(*this);
-//    timings.append("BedFile::subtract Interval tree 1: " + Helper::elapsedTime(timer));
-//    timer.restart();
-//    ChromosomalIndex<BedFile> file2_idx(file2);
-//    timings.append("BedFile::subtract Interval tree 2: " + Helper::elapsedTime(timer));
-
-//    timer.restart();
-//    lines_.clear();
-//    timings.append("BedFile::subtract clear von file 1: " + Helper::elapsedTime(timer));
-
-//    timer.restart();
-//    QHash<Chromosome, IntervalTree<BedFile> >::const_iterator file1_tree_it = file1_idx.allIntervalTrees().begin();
-//    while (file1_tree_it != file1_idx.allIntervalTrees().end())
-//    {
-//        Chromosome chromosome =file1_tree_it.key();
-//        QVector<Interval> file1_remaining;
-//        // if the chromosome is not part of file2 all intervals in file1 remain
-//        file1_idx.subtract(chromosome, file2_idx,file1_remaining);
-//        lines_.reserve(this->count()+file1_remaining.count());
-//        QVector<Interval>::const_iterator it = file1_remaining.begin();
-//        while (it != file1_remaining.end())
-//        {
-//            append(BedLine(chromosome, it->start(), it->end()));
-//            ++it;
-//        }
-
-//        ++file1_tree_it;
-//    }
-//    timings.append("BedFile::subtract All subtracted: " + Helper::elapsedTime(timer));
-//    foreach(const QString& line, timings)
-//    {
-//        outstream << line << endl;
-//    }
-//}
 
 void BedFile::intersect(const BedFile& file2)
 {

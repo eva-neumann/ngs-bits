@@ -70,14 +70,6 @@ ChromosomalIndex<T>::ChromosomalIndex(const T& container, int depth, int maxbuck
 template <class T>
 void ChromosomalIndex<T>::createIndex()
 {
-    QTextStream outstream(stdout);
-    QTime timer;
-    QList<QString> timings;
-
-    //outstream << "ChromosomalIndex<T>::createIndex() start" << endl;
-    timer.start();
-    // collect the intervals for each chromosome
-    //outstream << "create hash intervals " << endl;
     UnorderedIndexMap hash_indices;
     UnorderedIndexMap::iterator hash_it;
     for (int i=0; i < container_.count(); ++i)
@@ -95,19 +87,13 @@ void ChromosomalIndex<T>::createIndex()
             hash_it->second.push_back(i);
         }
     }
-    outstream << "filter hash intervals " + Helper::elapsedTime(timer) << endl;
-    timer.restart();
     // build for each chromosome an interval tree
     hash_it = hash_indices.begin();
     while (hash_it != hash_indices.end())
     {
-        timer.restart();
         IntervalTree<T> interval_tree(container_, hash_it->second, 0, 0);
-         outstream << "build trees " + Helper::elapsedTime(timer) << endl;
-         timer.restart();
         OrderedTreeMapPair<T> key_tree_pair(hash_it->first,interval_tree);
         chr_intervals_.insert(key_tree_pair);
-        outstream << "insert trees " + Helper::elapsedTime(timer) << endl;
         ++hash_it;
     }
 }

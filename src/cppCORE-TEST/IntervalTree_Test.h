@@ -97,6 +97,33 @@ TEST_CLASS(IntervalTree_Test)
         }
     }
 
+    void minStartPositionContainer()
+    {
+        QVector<Interval> intervals;
+        QVector<int> indices;
+
+        intervals.push_back(Interval(14,20));
+        intervals.push_back(Interval(27,32));
+        intervals.push_back(Interval(33,40));
+        intervals.push_back(Interval(36,41));
+        intervals.push_back(Interval(47,53));
+        intervals.push_back(Interval(63,70));
+        intervals.push_back(Interval(78,85));
+        intervals.push_back(Interval(84,87));
+        intervals.push_back(Interval(91,92));
+        intervals.push_back(Interval(95,104));
+        for (int i=9; i>=0; --i)
+        {
+            indices.push_back(i);
+        }
+        std::sort(indices.begin(), indices.end(), MinStartPositionContainer<QVector<Interval> >(intervals));
+
+        for (int i=9; i>=0; --i)
+        {
+            I_EQUAL(indices[i],i);
+        }
+    }
+
 };
 
 
