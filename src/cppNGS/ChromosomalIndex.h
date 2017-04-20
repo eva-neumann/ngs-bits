@@ -6,12 +6,11 @@
 #include "IntervalTree.h"
 #include <unordered_map>
 #include <utility>
-#include <QHash>
+#include <map>
 #include <QVector>
+//#include <QTextStream>
+//#include "Helper.h"
 
-// TODO Remove
-#include <QTextStream>
-#include "Helper.h"
 
 template <typename T>
 using OrderedTreeMap = std::map<int, IntervalTree<T> >;
@@ -35,16 +34,8 @@ public:
     ///Returns the underlying container
     const T& container() const { return container_; }
 
-    /// Returns the hash with all intervaltrees
-    const QHash<Chromosome, IntervalTree<T> >& allIntervalTrees() const {return chr_intervals_;}
-
     /// Returns the interval tree of a certain chromosome
     const IntervalTree<T>* intervalTree(const Chromosome& chrom) const;
-
-    bool containsChromosome(const Chromosome& chromosome) const {return chr_intervals_.contains(chromosome); }
-
-    void subtract(const Chromosome& chromosome, const ChromosomalIndex<T>& other, QVector<Interval>& remaining_intervals) const;
-
 
     ///Returns a vector of element indices overlapping the given chromosomal range.
     QVector<int> matchingIndices(const Chromosome& chr, int start, int end) const;
@@ -128,42 +119,5 @@ int ChromosomalIndex<T>::matchingIndex(const Chromosome& chr, int start, int end
     }
     return -1;
 }
-
-
-template <class T>
-void ChromosomalIndex<T>::subtract(const Chromosome& chromosome, const ChromosomalIndex<T>& other, QVector<Interval>& remaining_intervals) const
-{
-//    QTextStream outstream(stdout);
-//    QTime timer;
-//    QList<QString> timings;
-
-//    outstream << "ChromosomalIndex<T>::subtract() start" << endl;
-    //timer.start();
-
-    remaining_intervals.clear();
-    // if the chromosome is present in this chromosomal index proceed
-    if (chr_intervals_.contains(chromosome))
-    {
-        // if also the other chromosomal index has an interval of the chromosome subtract the trees
-        if (other.chr_intervals_.contains(chromosome))
-        {
-            chr_intervals_[chromosome].subtractTree(other.chr_intervals_[chromosome],remaining_intervals);
-        }
-        // else all intervals of the chromosome in this chromosomal index remain
-        else
-        {
-            chr_intervals_[chromosome].allIntervals(remaining_intervals);
-        }
-    }
-    //outstream << "ChromosomalIndex<T>::subtract() done" << endl;
-    //timings.append("subtract " + Helper::elapsed//time(//timer));
-
-//   foreach(const QString& line, //timings)
-//   {
-//       outstream << line << endl;
-//   }
-
-}
-
 
 #endif // CHROMOSOMALINDEX_H
